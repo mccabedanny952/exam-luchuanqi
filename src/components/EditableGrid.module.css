@@ -1,0 +1,115 @@
+.frame {
+  min-width: 0;
+}
+
+.tableWrap {
+  overflow: auto;
+  border-radius: 22px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.55);
+}
+
+.table {
+  width: 100%;
+  min-width: 1180px;
+}
+
+.table th,
+.table td {
+  padding: 14px 12px;
+  border-bottom: 1px solid rgba(91, 79, 58, 0.12);
+  border-right: 1px solid rgba(91, 79, 58, 0.08);
+  text-align: left;
+  vertical-align: top;
+}
+
+.table th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: #f6ead4;
+  color: var(--ink-main);
+  font-size: 13px;
+}
+
+.indexCol {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: #fbf3e4;
+  min-width: 76px;
+  font-weight: 800;
+}
+
+.table th.indexCol {
+  z-index: 3;
+}
+
+.required {
+  color: var(--danger);
+  margin-left: 4px;
+}
+
+.unmapped {
+  color: var(--danger);
+  font-size: 12px;
+}
+
+.rowWarn {
+  background: rgba(255, 246, 244, 0.78);
+}
+
+.cellWarn {
+  background: rgba(255, 238, 233, 0.9);
+}
+
+.cellBox {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 26px;
+}
+
+.value {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.errorStack {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.errorStack span {
+  display: inline-flex;
+  align-self: flex-start;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: rgba(192, 59, 51, 0.1);
+  color: #95352e;
+  font-size: 12px;
+}
+
+.editor {
+  width: 100%;
+  min-width: 120px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(203, 93, 44, 0.28);
+  background: rgba(255, 255, 255, 0.95);
+  outline: none;
+}
+
+.actionCol {
+  min-width: 92px;
+}
+
+.deleteButton {
+  padding: 8px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(192, 59, 51, 0.18);
+  background: rgba(255, 245, 243, 0.92);
+  color: var(--danger);
+  font-weight: 700;
+}

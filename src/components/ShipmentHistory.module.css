@@ -1,0 +1,125 @@
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.filters {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+  align-items: end;
+}
+
+.filters label {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--ink-soft);
+  font-weight: 700;
+}
+
+.filters input {
+  min-height: 46px;
+  padding: 10px 14px;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: rgba(255, 253, 249, 0.88);
+  outline: none;
+}
+
+.filterActions {
+  display: flex;
+  gap: 10px;
+}
+
+.primaryButton,
+.secondaryButton,
+.pagerButtons button {
+  min-height: 46px;
+  padding: 0 16px;
+  border-radius: 14px;
+  font-weight: 800;
+}
+
+.primaryButton {
+  border: 0;
+  background: linear-gradient(135deg, var(--accent), #db7833);
+  color: white;
+}
+
+.secondaryButton,
+.pagerButtons button {
+  border: 1px solid var(--line);
+  background: rgba(255, 253, 249, 0.92);
+}
+
+.secondaryButton:disabled,
+.pagerButtons button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.tableCard {
+  border-radius: 22px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.48);
+}
+
+.tableWrap {
+  overflow: auto;
+}
+
+.table {
+  width: 100%;
+  min-width: 960px;
+}
+
+.table th,
+.table td {
+  padding: 14px 16px;
+  border-bottom: 1px solid rgba(91, 79, 58, 0.12);
+  text-align: left;
+}
+
+.table th {
+  background: #f6ead4;
+  font-size: 13px;
+}
+
+.emptyState,
+.emptyCell {
+  padding: 44px 20px;
+  text-align: center;
+  color: var(--ink-soft);
+}
+
+.pager {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  color: var(--ink-soft);
+}
+
+.pagerButtons {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+@media (max-width: 900px) {
+  .filters {
+    grid-template-columns: 1fr;
+  }
+
+  .filterActions {
+    flex-wrap: wrap;
+  }
+
+  .pager {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+}

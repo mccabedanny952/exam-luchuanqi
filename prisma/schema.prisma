@@ -1,0 +1,32 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Order {
+  id              String   @id @default(cuid())
+  externalCode    String?
+  senderName      String
+  senderPhone     String
+  senderAddress   String
+  receiverName    String
+  receiverPhone   String
+  receiverAddress String
+  weight          Float
+  count           Int
+  tempZone        String
+  remark          String?
+  createdAt       DateTime @default(now())
+}
+
+model TemplateMapping {
+  id          String   @id @default(cuid())
+  fingerprint String   @unique
+  mapping     String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
