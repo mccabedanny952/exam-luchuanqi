@@ -10,6 +10,7 @@ import {
 } from "react";
 import type { MappingState, ParsedRow, ValidationIssue } from "@/utils/excel-tools";
 import { SYSTEM_FIELDS, getMappedValue } from "@/utils/excel-tools";
+import { buildOrderSkuKey } from "@/utils/order-identity";
 import styles from "./EditableGrid.module.css";
 
 interface EditableGridProps {
@@ -29,56 +30,66 @@ export default function EditableGrid({
   onValidationComplete,
 }: EditableGridProps) {
   const [editingCell, setEditingCell] = useState<{ rowIndex: number; fieldKey: string } | null>(null);
-  const [dbDuplicates, setDbDuplicates] = useState<Set<string>>(new Set());
+  const [dbDuplicateKeys, setDbDuplicateKeys] = useState<Set<string>>(new Set());
   const [scrollTop, setScrollTop] = useState(0);
-  const lastCodesKeyRef = useRef("");
+  const lastIdentityKeyRef = useRef("");
   const deferredData = useDeferredValue(data);
 
   useEffect(() => {
-    const codes = deferredData
-      .map((row) => getMappedValue(row, mapping, "externalCode"))
-      .filter((value) => value !== "");
+    const items = deferredData
+      .map((row) => ({
+        externalCode: getMappedValue(row, mapping, "externalCode"),
+        skuCode: getMappedValue(row, mapping, "skuCode"),
+      }))
+      .filter((item) => buildOrderSkuKey(item) !== "");
 
-    const codesKey = [...codes].sort().join(",");
-    if (codesKey === lastCodesKeyRef.current) {
+    const identitiesKey = items.map((item) => buildOrderSkuKey(item)).sort().join(",");
+    if (identitiesKey === lastIdentityKeyRef.current) {
       return;
     }
-    lastCodesKeyRef.current = codesKey;
+    lastIdentityKeyRef.current = identitiesKey;
 
-    if (codes.length === 0) {
-      Promise.resolve().then(() => setDbDuplicates(new Set()));
+    if (items.length === 0) {
+      Promise.resolve().then(() => setDbDuplicateKeys(new Set()));
       return;
     }
 
     fetch("/api/orders/check-duplicates", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ codes: [...new Set(codes)] }),
+      body: JSON.stringify({ items }),
     })
       .then((response) => response.json())
       .then((payload) => {
-        setDbDuplicates(new Set(payload.duplicates || []));
+        setDbDuplicateKeys(new Set(payload.duplicateKeys || []));
       })
       .catch(() => {
-        setDbDuplicates(new Set());
+        setDbDuplicateKeys(new Set());
       });
   }, [deferredData, mapping]);
 
   const validationIssues = useMemo<ValidationIssue[]>(() => {
     const nextIssues: ValidationIssue[] = [];
-    const externalCodeMap = new Map<string, number[]>();
+    const orderSkuMap = new Map<string, number[]>();
 
     deferredData.forEach((row, rowIndex) => {
-      const code = getMappedValue(row, mapping, "externalCode");
-      if (!code) {
+      const rowKey = buildOrderSkuKey({
+        externalCode: getMappedValue(row, mapping, "externalCode"),
+        skuCode: getMappedValue(row, mapping, "skuCode"),
+      });
+      if (!rowKey) {
         return;
       }
-      const group = externalCodeMap.get(code) ?? [];
+      const group = orderSkuMap.get(rowKey) ?? [];
       group.push(rowIndex);
-      externalCodeMap.set(code, group);
+      orderSkuMap.set(rowKey, group);
     });
 
     deferredData.forEach((row, rowIndex) => {
+      const rowKey = buildOrderSkuKey({
+        externalCode: getMappedValue(row, mapping, "externalCode"),
+        skuCode: getMappedValue(row, mapping, "skuCode"),
+      });
       const storeName = getMappedValue(row, mapping, "storeName");
       const receiverName = getMappedValue(row, mapping, "receiverName");
       const receiverPhone = getMappedValue(row, mapping, "receiverPhone");
@@ -120,8 +131,8 @@ export default function EditableGrid({
           }
         }
 
-        if (field.key === "externalCode") {
-          const duplicateRows = externalCodeMap.get(textValue);
+        if (field.key === "skuCode" && rowKey) {
+          const duplicateRows = orderSkuMap.get(rowKey);
           if (duplicateRows && duplicateRows.length > 1) {
             const rowLabels = duplicateRows
               .filter((index) => index !== rowIndex)
@@ -129,15 +140,15 @@ export default function EditableGrid({
             nextIssues.push({
               rowIndex,
               fieldKey: field.key,
-              msg: `批次内重复，与第 ${rowLabels.join(", ")} 行重复`,
+              msg: `同一外部订单号下 SKU 重复，与第 ${rowLabels.join(", ")} 行重复`,
             });
           }
 
-          if (dbDuplicates.has(textValue)) {
+          if (dbDuplicateKeys.has(rowKey)) {
             nextIssues.push({
               rowIndex,
               fieldKey: field.key,
-              msg: "与数据库中已有数据重复",
+              msg: "该外部订单号下 SKU 已在数据库存在",
             });
           }
         }
@@ -145,7 +156,7 @@ export default function EditableGrid({
     });
 
     return nextIssues;
-  }, [dbDuplicates, deferredData, mapping]);
+  }, [dbDuplicateKeys, deferredData, mapping]);
 
   useEffect(() => {
     onValidationComplete(validationIssues.length === 0, validationIssues);

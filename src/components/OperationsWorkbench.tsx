@@ -617,7 +617,10 @@ export default function OperationsWorkbench() {
         });
 
         if (response.ok) {
-          successCount += chunk.length;
+          const payload = (await response.json().catch(() => ({}))) as { count?: number };
+          const createdCount = typeof payload.count === "number" ? payload.count : chunk.length;
+          successCount += createdCount;
+          failCount += Math.max(0, chunk.length - createdCount);
         } else {
           failCount += chunk.length;
         }

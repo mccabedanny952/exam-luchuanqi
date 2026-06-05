@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { buildOrderSkuKey, formatOrderSkuIdentity } from "@/utils/order-identity";
 
 interface IncomingOrder {
   externalCode?: string | null;
@@ -17,6 +18,29 @@ interface IncomingOrder {
 function cleanText(value: unknown): string | null {
   const text = String(value ?? "").trim();
   return text === "" ? null : text;
+}
+
+function findDuplicatedOrderSkuIndex(orders: IncomingOrder[]): { firstIndex: number; indexes: number[] } | null {
+  const bucket = new Map<string, number[]>();
+
+  orders.forEach((order, index) => {
+    const key = buildOrderSkuKey(order);
+    if (!key) {
+      return;
+    }
+
+    const indexes = bucket.get(key) ?? [];
+    indexes.push(index);
+    bucket.set(key, indexes);
+  });
+
+  for (const indexes of bucket.values()) {
+    if (indexes.length > 1) {
+      return { firstIndex: indexes[0], indexes };
+    }
+  }
+
+  return null;
 }
 
 export async function GET(request: Request) {
@@ -65,7 +89,32 @@ export async function GET(request: Request) {
       prisma.order.count({ where }),
     ]);
 
-    return NextResponse.json({ data: orders, total });
+    const externalCodes = [
+      ...new Set(
+        orders
+          .map((order) => order.externalCode)
+          .filter((code): code is string => Boolean(code)),
+      ),
+    ];
+    const skuLineCounts =
+      externalCodes.length > 0
+        ? await prisma.order.groupBy({
+            by: ["externalCode"],
+            where: {
+              AND: [...conditions, { externalCode: { in: externalCodes } }],
+            },
+            _count: { _all: true },
+          })
+        : [];
+    const lineCountMap = new Map(
+      skuLineCounts.map((item) => [item.externalCode, item._count._all]),
+    );
+    const data = orders.map((order) => ({
+      ...order,
+      skuLineCount: order.externalCode ? lineCountMap.get(order.externalCode) ?? 1 : 1,
+    }));
+
+    return NextResponse.json({ data, total });
   } catch (error) {
     console.error("Order fetch error:", error);
     return NextResponse.json({ error: "入库记录读取失败" }, { status: 500 });
@@ -106,9 +155,48 @@ export async function POST(request: Request) {
       );
     }
 
+    const duplicatedBatch = findDuplicatedOrderSkuIndex(normalized);
+    if (duplicatedBatch) {
+      const rowLabels = duplicatedBatch.indexes.map((index) => index + 1).join(", ");
+      return NextResponse.json(
+        {
+          error: `同一批次中 ${formatOrderSkuIdentity(normalized[duplicatedBatch.firstIndex])} 重复，涉及第 ${rowLabels} 条`,
+        },
+        { status: 400 },
+      );
+    }
+
+    const externalCodes = [
+      ...new Set(
+        normalized
+          .map((order) => order.externalCode)
+          .filter((code): code is string => Boolean(code)),
+      ),
+    ];
+    const skuCodes = [...new Set(normalized.map((order) => order.skuCode).filter(Boolean))];
+
+    if (externalCodes.length > 0 && skuCodes.length > 0) {
+      const requestedKeys = new Set(normalized.map((order) => buildOrderSkuKey(order)).filter(Boolean));
+      const existing = await prisma.order.findMany({
+        where: {
+          externalCode: { in: externalCodes },
+          skuCode: { in: skuCodes },
+        },
+        select: { externalCode: true, skuCode: true },
+      });
+      const existingKeys = new Set(existing.map((order) => buildOrderSkuKey(order)));
+      const duplicatedExisting = normalized.find((order) => existingKeys.has(buildOrderSkuKey(order)));
+
+      if (duplicatedExisting && requestedKeys.has(buildOrderSkuKey(duplicatedExisting))) {
+        return NextResponse.json(
+          { error: `${formatOrderSkuIdentity(duplicatedExisting)} 已在数据库存在，请勿重复提交` },
+          { status: 400 },
+        );
+      }
+    }
+
     const result = await prisma.order.createMany({
       data: normalized,
-      skipDuplicates: true,
     });
 
     return NextResponse.json({ success: true, count: result.count });

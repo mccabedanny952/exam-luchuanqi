@@ -28,6 +28,7 @@ model Order {
   createdAt       DateTime @default(now())
 
   @@index([externalCode])
+  @@index([externalCode, skuCode])
   @@index([receiverName])
   @@index([storeName])
 }

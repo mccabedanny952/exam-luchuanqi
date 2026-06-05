@@ -14,6 +14,7 @@ interface OrderRecord {
   skuName: string;
   skuQuantity: number;
   skuSpec: string | null;
+  skuLineCount?: number;
   createdAt: string;
 }
 
@@ -219,6 +220,7 @@ export default function ShipmentHistory() {
               <thead>
                 <tr>
                   <th>外部编码</th>
+                  <th>同单SKU数</th>
                   <th>收货门店</th>
                   <th>收件人</th>
                   <th>收件电话</th>
@@ -233,7 +235,7 @@ export default function ShipmentHistory() {
               <tbody>
                 {orders.length === 0 ? (
                   <tr>
-                    <td colSpan={10} className={styles.emptyCell}>
+                    <td colSpan={11} className={styles.emptyCell}>
                       暂无数据
                     </td>
                   </tr>
@@ -241,6 +243,9 @@ export default function ShipmentHistory() {
                   orders.map((order) => (
                     <tr key={order.id}>
                       <td>{order.externalCode || "-"}</td>
+                      <td>
+                        <span className={styles.skuCount}>{order.skuLineCount ?? 1}</span>
+                      </td>
                       <td>{order.storeName || "-"}</td>
                       <td>{order.receiverName || "-"}</td>
                       <td>{order.receiverPhone || "-"}</td>

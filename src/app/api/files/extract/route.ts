@@ -5,6 +5,7 @@ import { createRequire } from "node:module";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import type { FileStructureSummary } from "@/utils/excel-tools";
+import { ensurePdfDomMatrix } from "@/utils/pdf-dom-polyfill";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -47,6 +48,7 @@ function resolvePdfWorkerPath(): string {
 }
 
 async function extractPdfText(buffer: Buffer): Promise<string> {
+  ensurePdfDomMatrix();
   const { PDFParse } = await import("pdf-parse");
   PDFParse.setWorker(pathToFileURL(resolvePdfWorkerPath()).href);
 
