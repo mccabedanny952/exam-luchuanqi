@@ -17,15 +17,64 @@ interface OrderRecord {
   createdAt: string;
 }
 
+type DateField = "from" | "to";
+
+interface HistoryFilters {
+  search: string;
+  dateFrom: string;
+  dateTo: string;
+}
+
+function toDateInputValue(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function getCalendarDays(value: string): string[] {
+  const base = value ? new Date(`${value}T00:00:00`) : new Date();
+  const year = base.getFullYear();
+  const month = base.getMonth();
+  const firstDay = new Date(year, month, 1);
+  const start = new Date(firstDay);
+  start.setDate(firstDay.getDate() - firstDay.getDay());
+
+  return Array.from({ length: 42 }, (_, index) => {
+    const day = new Date(start);
+    day.setDate(start.getDate() + index);
+    return toDateInputValue(day);
+  });
+}
+
 export default function ShipmentHistory() {
   const [orders, setOrders] = useState<OrderRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
+  const [appliedFilters, setAppliedFilters] = useState<HistoryFilters>({
+    search: "",
+    dateFrom: "",
+    dateTo: "",
+  });
+  const [openCalendar, setOpenCalendar] = useState<DateField | null>(null);
   const [page, setPage] = useState(0);
   const [total, setTotal] = useState(0);
   const take = 20;
+
+  const activeDateValue = openCalendar === "from" ? dateFrom : openCalendar === "to" ? dateTo : "";
+  const calendarDays = openCalendar ? getCalendarDays(activeDateValue) : [];
+
+  const selectDate = (value: string) => {
+    if (openCalendar === "from") {
+      setDateFrom(value);
+    }
+    if (openCalendar === "to") {
+      setDateTo(value);
+    }
+    setOpenCalendar(null);
+  };
 
   const fetchOrders = useCallback(async (resetPage = false) => {
     setLoading(true);
@@ -37,13 +86,13 @@ export default function ShipmentHistory() {
     const params = new URLSearchParams({
       skip: String(nextPage * take),
       take: String(take),
-      search,
+      search: appliedFilters.search,
     });
-    if (dateFrom) {
-      params.set("dateFrom", dateFrom);
+    if (appliedFilters.dateFrom) {
+      params.set("dateFrom", appliedFilters.dateFrom);
     }
-    if (dateTo) {
-      params.set("dateTo", dateTo);
+    if (appliedFilters.dateTo) {
+      params.set("dateTo", appliedFilters.dateTo);
     }
 
     try {
@@ -57,7 +106,7 @@ export default function ShipmentHistory() {
     } finally {
       setLoading(false);
     }
-  }, [dateFrom, dateTo, page, search]);
+  }, [appliedFilters, page]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -73,7 +122,9 @@ export default function ShipmentHistory() {
         className={styles.filters}
         onSubmit={(event) => {
           event.preventDefault();
-          void fetchOrders(true);
+          setPage(0);
+          setOpenCalendar(null);
+          setAppliedFilters({ search, dateFrom, dateTo });
         }}
       >
         <label>
@@ -84,14 +135,60 @@ export default function ShipmentHistory() {
             placeholder="外部编码 / 收件人 / 门店 / SKU"
           />
         </label>
-        <label>
+        <label className={styles.dateField}>
           <span>提交时间（起）</span>
-          <input type="date" value={dateFrom} onChange={(event) => setDateFrom(event.target.value)} />
+          <input
+            readOnly
+            type="text"
+            placeholder="选择开始日期"
+            value={dateFrom}
+            onClick={() => setOpenCalendar(openCalendar === "from" ? null : "from")}
+          />
         </label>
-        <label>
+        <label className={styles.dateField}>
           <span>提交时间（止）</span>
-          <input type="date" value={dateTo} onChange={(event) => setDateTo(event.target.value)} />
+          <input
+            readOnly
+            type="text"
+            placeholder="选择结束日期"
+            value={dateTo}
+            onClick={() => setOpenCalendar(openCalendar === "to" ? null : "to")}
+          />
         </label>
+        {openCalendar && (
+          <div className={styles.calendarPanel}>
+            <div className={styles.calendarHeader}>
+              <strong>{openCalendar === "from" ? "选择开始日期" : "选择结束日期"}</strong>
+              <button type="button" onClick={() => setOpenCalendar(null)}>
+                关闭
+              </button>
+            </div>
+            <div className={styles.weekRow}>
+              {["日", "一", "二", "三", "四", "五", "六"].map((item) => (
+                <span key={item}>{item}</span>
+              ))}
+            </div>
+            <div className={styles.dayGrid}>
+              {calendarDays.map((value) => {
+                const selected = value === activeDateValue;
+                const muted = new Date(`${value}T00:00:00`).getMonth() !== new Date(`${calendarDays[14]}T00:00:00`).getMonth();
+                return (
+                  <button
+                    key={value}
+                    data-date={value}
+                    aria-label={`选择日期 ${value}`}
+                    type="button"
+                    className={`${styles.dayButton} ${selected ? styles.dayButton_active : ""} ${muted ? styles.dayButton_muted : ""}`}
+                    onMouseDown={(event) => event.preventDefault()}
+                    onClick={() => selectDate(value)}
+                  >
+                    {Number(value.slice(8, 10))}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
         <div className={styles.filterActions}>
           <button type="submit" className={styles.primaryButton}>
             搜索
@@ -103,8 +200,9 @@ export default function ShipmentHistory() {
               setSearch("");
               setDateFrom("");
               setDateTo("");
+              setAppliedFilters({ search: "", dateFrom: "", dateTo: "" });
+              setOpenCalendar(null);
               setPage(0);
-              setTimeout(() => void fetchOrders(true), 0);
             }}
           >
             重置

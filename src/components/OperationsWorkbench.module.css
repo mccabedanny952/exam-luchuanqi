@@ -4,23 +4,6 @@
   color: #172b4d;
 }
 
-.topbar {
-  position: fixed;
-  inset: 0 0 auto 0;
-  z-index: 20;
-  display: flex;
-  align-items: center;
-  gap: 18px;
-  height: 52px;
-  padding: 0 18px;
-  color: #fff;
-  background: linear-gradient(90deg, #0fc6c2 0%, #047f9b 56%, #00577a 100%);
-  box-shadow: 0 2px 8px rgba(0, 68, 84, 0.18);
-}
-
-.logoBox,
-.topLinks,
-.userTools,
 .tabbar,
 .breadcrumb,
 .cardHeader,
@@ -33,60 +16,6 @@
   align-items: center;
 }
 
-.logoBox {
-  gap: 10px;
-  min-width: 220px;
-}
-
-.logoMark {
-  display: grid;
-  place-items: center;
-  width: 28px;
-  height: 28px;
-  border-radius: 6px;
-  color: #008b93;
-  background: #fff;
-  font-size: 13px;
-  font-weight: 800;
-}
-
-.globalSearch {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  width: min(420px, 32vw);
-  height: 32px;
-  padding: 0 12px;
-  border: 1px solid rgba(255, 255, 255, 0.28);
-  border-radius: 4px;
-  background: rgba(255, 255, 255, 0.12);
-}
-
-.globalSearch input {
-  width: 100%;
-  border: 0;
-  outline: 0;
-  color: #fff;
-  background: transparent;
-}
-
-.globalSearch input::placeholder {
-  color: rgba(255, 255, 255, 0.75);
-}
-
-.topLinks {
-  flex: 1;
-  gap: 26px;
-  min-width: 0;
-  color: rgba(255, 255, 255, 0.9);
-  font-size: 14px;
-}
-
-.userTools {
-  gap: 8px;
-}
-
-.userTools button,
 .tabbar button,
 .iconButton {
   display: inline-flex;
@@ -97,16 +26,9 @@
   border-radius: 4px;
 }
 
-.userTools button {
-  min-height: 30px;
-  padding: 0 10px;
-  color: #fff;
-  background: rgba(255, 255, 255, 0.12);
-}
-
 .sidebar {
   position: fixed;
-  top: 52px;
+  top: 0;
   bottom: 0;
   left: 0;
   z-index: 10;
@@ -154,23 +76,9 @@
   background: linear-gradient(90deg, rgba(15, 198, 194, 0.92), rgba(0, 100, 129, 0.3));
 }
 
-.navGroupTitle {
-  margin: 18px 10px 8px;
-  color: #75aebd;
-  font-size: 12px;
-}
-
-.sidebar > span {
-  display: block;
-  padding: 5px 20px;
-  color: #9ec1cb;
-  font-size: 13px;
-}
-
 .main {
   min-width: 0;
   margin-left: 220px;
-  padding-top: 52px;
 }
 
 .tabbar {
@@ -209,13 +117,6 @@
   background: #f7fbfd;
   border-bottom: 1px solid #dce8ee;
   font-size: 13px;
-}
-
-.breadcrumb em {
-  margin-left: auto;
-  color: #24364c;
-  font-style: normal;
-  font-weight: 700;
 }
 
 .heroPanel,
@@ -797,21 +698,14 @@
 }
 
 @media (max-width: 820px) {
-  .topLinks,
-  .globalSearch {
-    display: none;
-  }
-
   .sidebar {
     position: static;
     width: auto;
     height: auto;
-    margin-top: 52px;
   }
 
   .main {
     margin-left: 0;
-    padding-top: 0;
   }
 
   .heroCards,

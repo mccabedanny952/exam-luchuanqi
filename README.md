@@ -1,17 +1,17 @@
-# 鲸天系统 · 万能导入 V2
+# 鲸天系统 · 转运文件处理台
 
-本项目基于 Next.js App Router + TypeScript，实现考试要求中的“万能导入 V2”：上传 Excel / Word / PDF 后，先由用户手动选择解析规则；新格式可通过 LLM 生成可编辑规则，人工确认后再执行解析、预览、校验、提交入库。
+本项目基于 Next.js App Router + TypeScript，实现考试要求中的多格式转运文件接入：接入 Excel / Word / PDF 后，由用户手动选择字段规则，或通过 LLM 起草可编辑规则，人工确认后再生成明细、预览、校验、提交入库。
 
 ## 核心能力
 
 - UI 调整为鲸天系统风格：青绿色主色 `#0fc6c2`、顶部栏、深色侧栏、紧凑内容区、表格化工作台。
 - 支持 Excel `.xlsx/.xls`、Word `.docx`、PDF 文件入口。
 - 规则引擎覆盖普通表格、尾部信息提取、多 Sheet 合并、卡片式、矩阵转置、文本/PDF 解析。
-- AI 只生成“解析规则”，不绕过用户确认直接导入数据；规则含 `aiNotes` 标注推测项。
+- AI 只起草“字段规则”，不绕过用户确认直接导入数据；规则含 `aiNotes` 标注推测项。
 - 导入后进入类 Excel 预览表，支持固定表头、横向滚动、单元格编辑、新增/删除行、导出 Excel。
 - 校验规则按新试卷字段：SKU 编码/名称/数量必填；收货门店或“收件人姓名+电话+地址”二选一；电话、数量、重复外部编码实时校验。
 - 1000+ 行预览使用虚拟渲染，避免大列表卡顿。
-- 提交成功后写入 Prisma / PostgreSQL，历史列表支持关键词和时间筛选分页。
+- 提交成功后写入 Prisma / PostgreSQL，入库记录支持关键词和时间筛选分页。
 
 ## 环境变量
 
@@ -52,14 +52,14 @@ npx prisma db push
 
 ## API
 
-- `GET /api/mappings`：读取已保存解析规则列表。
-- `POST /api/mappings`：保存当前确认后的解析规则。
-- `DELETE /api/mappings?id=...`：删除解析规则。
+- `GET /api/mappings`：读取已保存字段规则列表。
+- `POST /api/mappings`：保存当前确认后的字段规则。
+- `DELETE /api/mappings?id=...`：删除字段规则。
 - `POST /api/rules/generate`：调用 LLM 根据文件结构生成推荐规则。
 - `POST /api/files/extract`：抽取 Word / PDF 文本结构。
-- `POST /api/rules/execute`：按确认后的文本规则解析 Word / PDF。
-- `GET /api/orders`：分页筛选历史已导入运单。
-- `POST /api/orders`：批量提交解析后的明细。
+- `POST /api/rules/execute`：按确认后的文本规则处理 Word / PDF。
+- `GET /api/orders`：分页筛选入库记录。
+- `POST /api/orders`：批量提交核对后的明细。
 - `POST /api/orders/check-duplicates`：检查外部编码是否已存在。
 
 ## 验证

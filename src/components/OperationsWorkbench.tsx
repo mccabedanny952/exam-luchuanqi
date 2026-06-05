@@ -4,7 +4,6 @@ import { startTransition, useCallback, useEffect, useMemo, useRef, useState } fr
 import * as XLSX from "xlsx";
 import {
   AlertCircle,
-  Bell,
   CheckCircle2,
   ChevronLeft,
   Database,
@@ -20,11 +19,9 @@ import {
   Plus,
   RefreshCw,
   Save,
-  Search,
   Sparkles,
   Trash2,
   UploadCloud,
-  User,
 } from "lucide-react";
 import type {
   FileStructureSummary,
@@ -118,6 +115,7 @@ export default function OperationsWorkbench() {
   const [headers, setHeaders] = useState<string[]>([]);
   const [fingerprint, setFingerprint] = useState("");
   const [currentRule, setCurrentRule] = useState<ParsingRule | null>(null);
+  const [isRuleReady, setIsRuleReady] = useState(false);
   const [savedRules, setSavedRules] = useState<SavedRuleRecord[]>([]);
   const [rows, setRows] = useState<ParsedRow[]>([]);
   const [isReadingFile, setIsReadingFile] = useState(false);
@@ -178,6 +176,7 @@ export default function OperationsWorkbench() {
     setFileSummary(null);
     setTextExtract(null);
     setCurrentRule(null);
+    setIsRuleReady(false);
     setIssues([]);
     setIsValid(false);
     setSelectedFile(null);
@@ -218,6 +217,7 @@ export default function OperationsWorkbench() {
     setIsValid(false);
     setSubmitResult(null);
     setCurrentRule(null);
+    setIsRuleReady(false);
     setIsReadingFile(true);
     setParseProgress({ pct: 0, current: 0, total: 0 });
     setLlmWarnings([]);
@@ -255,16 +255,13 @@ export default function OperationsWorkbench() {
       setHeaders(nextHeaders);
       setFingerprint(nextFingerprint);
       setCurrentRule(defaultRule);
+      setIsRuleReady(false);
       setIsReadingFile(false);
 
       const matchedRecord = savedRules.find((record) => record.fingerprint === nextFingerprint);
       if (matchedRecord) {
-        const matchedRule = safeParseRule(matchedRecord);
-        if (matchedRule) {
-          setCurrentRule(matchedRule);
-          pushToast("success", `当前结构已匹配规则：${matchedRecord.name}`);
-          return;
-        }
+        pushToast("success", `规则库中有相同结构：${matchedRecord.name}，请手动点击选择后生成明细`);
+        return;
       }
 
       pushToast("warning", "结构识别完成，请在规则栏确认映射或让 AI 起草一版");
@@ -429,6 +426,7 @@ export default function OperationsWorkbench() {
 
       const aiRule = normalizeRule(payload.rule, headers, selectedFile?.name || "新建规则");
       setCurrentRule(aiRule);
+      setIsRuleReady(false);
       setRuleDialogPurpose("parse");
       setManagedRuleDraft(null);
       setRuleDialogOpen(true);
@@ -441,9 +439,14 @@ export default function OperationsWorkbench() {
     }
   };
 
-  const executeCurrentRule = async (rule = currentRule) => {
+  const executeCurrentRule = async (rule = currentRule, allowDraft = false) => {
     if (!selectedFile || !rule) {
       pushToast("warning", "请先接入文件并确认规则");
+      return;
+    }
+
+    if (!allowDraft && !isRuleReady) {
+      pushToast("warning", "请先手动选择规则，或进入校准弹窗确认当前草稿");
       return;
     }
 
@@ -465,6 +468,7 @@ export default function OperationsWorkbench() {
         );
         setHeaders(result.headers);
         setCurrentRule(normalizedRule);
+        setIsRuleReady(true);
         startTransition(() => {
           setRows(result.data);
           setActiveView("preview");
@@ -678,36 +682,11 @@ export default function OperationsWorkbench() {
           }
 
           setCurrentRule(rule);
+          setIsRuleReady(true);
           setRuleDialogOpen(false);
-          void executeCurrentRule(rule);
+          void executeCurrentRule(rule, true);
         }}
       />
-
-      <header className={styles.topbar}>
-        <div className={styles.logoBox}>
-          <div className={styles.logoMark}>JT</div>
-          <strong>中通冷链-鲸天系统</strong>
-        </div>
-        <label className={styles.globalSearch}>
-          <Search size={16} />
-          <input placeholder="搜索菜单 / 单号 / 字段规则" />
-        </label>
-        <nav className={styles.topLinks}>
-          <span>网络货运</span>
-          <span>项目管理</span>
-          <span>财务中台</span>
-          <span>更多租户 ...</span>
-        </nav>
-        <div className={styles.userTools}>
-          <button title="消息">
-            <Bell size={16} />
-          </button>
-          <button title="考核账号">
-            <User size={16} />
-            考核账号
-          </button>
-        </div>
-      </header>
 
       <aside className={styles.sidebar}>
         <div className={styles.siteSelect}>
@@ -745,10 +724,6 @@ export default function OperationsWorkbench() {
           <Database size={16} />
           入库记录
         </button>
-        <div className={styles.navGroupTitle}>处理能力</div>
-        <span>AI 字段起草</span>
-        <span>跨格式结构识别</span>
-        <span>明细落库追踪</span>
       </aside>
 
       <main className={styles.main}>
@@ -763,7 +738,6 @@ export default function OperationsWorkbench() {
           <span>鲸天系统</span>
           <span>/</span>
           <strong>{currentBreadcrumb}</strong>
-          <em>鲸天配色 #0fc6c2 · 文件结构识别 · LLM 字段起草</em>
         </div>
 
         {activeView === "home" && (
@@ -809,7 +783,7 @@ export default function OperationsWorkbench() {
                   <span>文件状态</span>
                 </div>
                 <div>
-                  <strong>{currentRule ? "待确认" : "未校准"}</strong>
+                  <strong>{isRuleReady ? "已确认" : currentRule ? "待确认" : "未校准"}</strong>
                   <span>字段映射</span>
                 </div>
                 <div>
@@ -929,12 +903,14 @@ export default function OperationsWorkbench() {
                         className={`${styles.ruleItem} ${record.fingerprint === fingerprint ? styles.ruleItem_current : ""}`}
                         onClick={() => {
                           setCurrentRule(rule);
-                          pushToast("success", `已切换规则：${rule.name}`);
+                          setIsRuleReady(true);
+                          pushToast("success", `已手动选择规则：${rule.name}`);
                         }}
                         onKeyDown={(event) => {
                           if (event.key === "Enter" || event.key === " ") {
                             setCurrentRule(rule);
-                            pushToast("success", `已切换规则：${rule.name}`);
+                            setIsRuleReady(true);
+                            pushToast("success", `已手动选择规则：${rule.name}`);
                           }
                         }}
                       >
@@ -959,9 +935,9 @@ export default function OperationsWorkbench() {
                 </div>
 
                 <div className={styles.ruleSummary}>
-                  <span>当前规则草案</span>
+                  <span>{isRuleReady ? "当前生效规则" : "当前规则草案"}</span>
                   <strong>{currentRule?.name ?? "未选择"}</strong>
-                  <small>已映射 {coverage.mapped}/{coverage.total}</small>
+                  <small>{isRuleReady ? "已人工确认" : "待人工确认"} · 已映射 {coverage.mapped}/{coverage.total}</small>
                 </div>
               </div>
             </section>

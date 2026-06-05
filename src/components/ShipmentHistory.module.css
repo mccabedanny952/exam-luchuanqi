@@ -5,6 +5,7 @@
 }
 
 .filters {
+  position: relative;
   display: grid;
   grid-template-columns: minmax(260px, 1fr) 190px 190px auto;
   gap: 10px;
@@ -36,6 +37,95 @@
 .filters input:focus {
   border-color: var(--accent);
   box-shadow: 0 0 0 2px rgba(15, 198, 194, 0.12);
+}
+
+.dateField input {
+  cursor: pointer;
+}
+
+.calendarPanel {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 108px;
+  z-index: 5;
+  width: 278px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: #fff;
+  box-shadow: 0 8px 22px rgba(21, 69, 92, 0.16);
+}
+
+.calendarHeader,
+.weekRow,
+.dayGrid {
+  display: grid;
+}
+
+.calendarHeader {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.calendarHeader strong {
+  color: var(--ink-strong);
+  font-size: 13px;
+}
+
+.calendarHeader button {
+  min-height: 28px;
+  padding: 0 9px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  color: var(--ink-main);
+  background: #fff;
+  font-weight: 700;
+}
+
+.weekRow,
+.dayGrid {
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 4px;
+}
+
+.weekRow {
+  margin-bottom: 4px;
+}
+
+.weekRow span {
+  color: var(--ink-soft);
+  font-size: 12px;
+  line-height: 26px;
+  text-align: center;
+}
+
+.dayButton {
+  min-width: 0;
+  height: 30px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  color: var(--ink-main);
+  background: #f7fbfd;
+  font-weight: 700;
+}
+
+.dayButton:hover {
+  border-color: var(--accent);
+  color: #007d84;
+  background: #efffff;
+}
+
+.dayButton_active {
+  border-color: var(--accent);
+  color: #fff;
+  background: var(--accent);
+}
+
+.dayButton_muted {
+  color: #9aaeb8;
+  background: #fbfdfe;
 }
 
 .filterActions,
@@ -127,6 +217,12 @@
 @media (max-width: 980px) {
   .filters {
     grid-template-columns: 1fr;
+  }
+
+  .calendarPanel {
+    right: 12px;
+    left: 12px;
+    width: auto;
   }
 
   .pager {
