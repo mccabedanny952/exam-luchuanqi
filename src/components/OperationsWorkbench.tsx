@@ -76,6 +76,12 @@ interface TextExtractState {
   summary: FileStructureSummary;
 }
 
+interface TextExtractPayload {
+  text?: unknown;
+  summary?: unknown;
+  error?: unknown;
+}
+
 interface ManagedRuleDraft {
   fingerprint: string;
   fileType: string;
@@ -102,6 +108,28 @@ function safeParseRule(record: SavedRuleRecord): ParsingRule | null {
   } catch {
     return null;
   }
+}
+
+function parseTextExtractPayload(rawText: string): TextExtractPayload | null {
+  try {
+    return JSON.parse(rawText) as TextExtractPayload;
+  } catch {
+    return null;
+  }
+}
+
+function getExtractErrorMessage(response: Response, rawText: string, payload: TextExtractPayload | null): string {
+  const payloadError = typeof payload?.error === "string" ? payload.error : "";
+
+  if (payloadError) {
+    return payloadError;
+  }
+
+  if (/^\s*</.test(rawText)) {
+    return `文件抽取接口返回异常页面（HTTP ${response.status}），请检查线上服务日志`;
+  }
+
+  return `文件抽取失败（HTTP ${response.status}）`;
 }
 
 export default function OperationsWorkbench() {
@@ -195,11 +223,19 @@ export default function OperationsWorkbench() {
       method: "POST",
       body: formData,
     });
-    const payload = await response.json();
+
+    const rawText = await response.text();
+    const payload = parseTextExtractPayload(rawText);
+
     if (!response.ok) {
-      throw new Error(payload.error || "文件抽取失败");
+      throw new Error(getExtractErrorMessage(response, rawText, payload));
     }
-    return { text: payload.text, summary: payload.summary };
+
+    if (!payload || typeof payload.text !== "string" || !payload.summary) {
+      throw new Error("文件抽取接口返回格式异常，请检查线上服务日志");
+    }
+
+    return { text: payload.text, summary: payload.summary as FileStructureSummary };
   };
 
   const handleFileSelection = async (file: File) => {

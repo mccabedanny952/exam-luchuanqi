@@ -1,24 +1,62 @@
 import { NextResponse } from "next/server";
 import mammoth from "mammoth";
-import { PDFParse } from "pdf-parse";
+import fs from "node:fs";
+import { createRequire } from "node:module";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import type { FileStructureSummary } from "@/utils/excel-tools";
 
 export const runtime = "nodejs";
+export const maxDuration = 120;
 
-const PDF_WORKER_PATH = path.join(
-  process.cwd(),
-  "node_modules",
-  "pdf-parse",
-  "dist",
-  "pdf-parse",
-  "esm",
-  "pdf.worker.mjs",
-);
+const require = createRequire(import.meta.url);
 
-function configurePdfWorker() {
-  PDFParse.setWorker(pathToFileURL(PDF_WORKER_PATH).href);
+function getPdfWorkerCandidates(): string[] {
+  const candidates = new Set<string>();
+
+  try {
+    const pdfParseEntry = require.resolve("pdf-parse");
+    const packageFormatDir = path.dirname(pdfParseEntry);
+    candidates.add(path.join(packageFormatDir, "pdf.worker.mjs"));
+    candidates.add(path.join(packageFormatDir, "..", "esm", "pdf.worker.mjs"));
+    candidates.add(path.join(packageFormatDir, "..", "cjs", "pdf.worker.mjs"));
+    candidates.add(path.join(packageFormatDir, "..", "..", "worker", "pdf.worker.mjs"));
+  } catch {
+    // Fall back to cwd-based paths below. This keeps the route catchable in bundled deployments.
+  }
+
+  candidates.add(
+    path.join(process.cwd(), "node_modules", "pdf-parse", "dist", "pdf-parse", "cjs", "pdf.worker.mjs"),
+  );
+  candidates.add(
+    path.join(process.cwd(), "node_modules", "pdf-parse", "dist", "pdf-parse", "esm", "pdf.worker.mjs"),
+  );
+  candidates.add(path.join(process.cwd(), "node_modules", "pdf-parse", "dist", "worker", "pdf.worker.mjs"));
+
+  return [...candidates];
+}
+
+function resolvePdfWorkerPath(): string {
+  const workerPath = getPdfWorkerCandidates().find((candidate) => fs.existsSync(candidate));
+
+  if (!workerPath) {
+    throw new Error("PDF 抽取组件未随线上包部署，请重新部署后再上传 PDF");
+  }
+
+  return workerPath;
+}
+
+async function extractPdfText(buffer: Buffer): Promise<string> {
+  const { PDFParse } = await import("pdf-parse");
+  PDFParse.setWorker(pathToFileURL(resolvePdfWorkerPath()).href);
+
+  const parser = new PDFParse({ data: buffer });
+  try {
+    const result = await parser.getText();
+    return result.text;
+  } finally {
+    await parser.destroy();
+  }
 }
 
 function inferFileType(fileName: string): string {
@@ -73,14 +111,7 @@ export async function POST(request: Request) {
       const result = await mammoth.extractRawText({ buffer });
       text = result.value;
     } else {
-      configurePdfWorker();
-      const parser = new PDFParse({ data: buffer });
-      try {
-        const result = await parser.getText();
-        text = result.text;
-      } finally {
-        await parser.destroy();
-      }
+      text = await extractPdfText(buffer);
     }
 
     if (!text.trim()) {
