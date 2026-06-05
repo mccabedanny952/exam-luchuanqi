@@ -10,17 +10,37 @@ datasource db {
 model Order {
   id              String   @id @default(cuid())
   externalCode    String?
-  senderName      String
-  senderPhone     String
-  senderAddress   String
-  receiverName    String
-  receiverPhone   String
-  receiverAddress String
-  weight          Float
-  count           Int
-  tempZone        String
+  senderName      String?
+  senderPhone     String?
+  senderAddress   String?
+  storeName       String?
+  receiverName    String?
+  receiverPhone   String?
+  receiverAddress String?
+  weight          Float?
+  count           Int?
+  tempZone        String?
+  skuCode         String?
+  skuName         String?
+  skuQuantity     Float?
+  skuSpec         String?
   remark          String?
   createdAt       DateTime @default(now())
+
+  @@index([externalCode])
+  @@index([receiverName])
+  @@index([storeName])
+}
+
+model ParsingRule {
+  id          String   @id @default(cuid())
+  fingerprint String   @unique
+  name        String
+  fileType    String
+  mode        String
+  rule        String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }
 
 model TemplateMapping {

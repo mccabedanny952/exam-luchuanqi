@@ -1,194 +1,71 @@
-# Cargo Flow Console
+# 鲸天系统 · 万能导入 V2
 
-Cargo Flow Console is a multi-template Excel import system for shipment/order creation. It is built with Next.js App Router, TypeScript, Prisma, and PostgreSQL, and focuses on converting heterogeneous Excel templates into a unified order workflow.
+本项目基于 Next.js App Router + TypeScript，实现考试要求中的“万能导入 V2”：上传 Excel / Word / PDF 后，先由用户手动选择解析规则；新格式可通过 LLM 生成可编辑规则，人工确认后再执行解析、预览、校验、提交入库。
 
-The app supports automatic template recognition, manual field mapping, template memory, inline data validation, editable preview tables, batch submission, and historical shipment lookup.
+## 核心能力
 
-## Features
+- UI 调整为鲸天系统风格：青绿色主色 `#0fc6c2`、顶部栏、深色侧栏、紧凑内容区、表格化工作台。
+- 支持 Excel `.xlsx/.xls`、Word `.docx`、PDF 文件入口。
+- 规则引擎覆盖普通表格、尾部信息提取、多 Sheet 合并、卡片式、矩阵转置、文本/PDF 解析。
+- AI 只生成“解析规则”，不绕过用户确认直接导入数据；规则含 `aiNotes` 标注推测项。
+- 导入后进入类 Excel 预览表，支持固定表头、横向滚动、单元格编辑、新增/删除行、导出 Excel。
+- 校验规则按新试卷字段：SKU 编码/名称/数量必填；收货门店或“收件人姓名+电话+地址”二选一；电话、数量、重复外部编码实时校验。
+- 1000+ 行预览使用虚拟渲染，避免大列表卡顿。
+- 提交成功后写入 Prisma / PostgreSQL，历史列表支持关键词和时间筛选分页。
 
-- Upload Excel files with drag and drop or file picker
-- Support `.xlsx` and `.xls` formats
-- Automatically detect different header names and column orders
-- Handle templates with extra title rows or multiple sheets
-- Manual field mapping when auto recognition is not confident enough
-- Remember mapping rules by header fingerprint for future imports
-- Show import progress while parsing Excel files
-- Preview imported rows in an editable spreadsheet-like table
-- Validate required fields, phone numbers, weight, quantity, and temperature zone in real time
-- Show all validation errors at once with row number and field details
-- Detect duplicate external codes within the current batch and against database records
-- Add empty rows or delete rows before submission
-- Export current preview data back to Excel
-- Submit valid records to PostgreSQL in batches
-- View historical shipment records with keyword search, date filtering, and pagination
+## 环境变量
 
-## Tech Stack
+本地 `.env` 或 Vercel 环境变量需配置：
 
-- Next.js 16
-- React 19
-- TypeScript
-- Prisma
-- PostgreSQL
-- `xlsx`
-- `lucide-react`
-
-## Screens and Workflow
-
-### 1. Import Workspace
-
-Users can upload an Excel file by dragging it into the upload area or selecting it manually. The system parses the file, detects the most likely data sheet, identifies the header row, and tries to map Excel columns to system fields automatically.
-
-### 2. Mapping Memory
-
-If the system cannot confidently map required fields, a manual mapping dialog is shown. Once the user confirms the mapping, the rule is stored in the database and reused next time for the same template structure.
-
-### 3. Editable Preview
-
-Imported rows are displayed in a spreadsheet-style preview. Cells can be edited inline, and validation runs in real time. Invalid cells are highlighted and a full error summary is shown above the table.
-
-### 4. Batch Submission
-
-Valid rows can be submitted in chunks to the database. Submission progress is displayed, and the UI returns success/fail totals after completion.
-
-### 5. Shipment History
-
-Submitted records can be viewed in the history section, with support for:
-
-- search by external code
-- search by receiver name
-- filter by submission date range
-- paginated browsing
-
-## Built-in Field Rules
-
-The system normalizes imported data around these fields:
-
-- External Code
-- Sender Name
-- Sender Phone
-- Sender Address
-- Receiver Name
-- Receiver Phone
-- Receiver Address
-- Weight (kg)
-- Quantity
-- Temperature Zone
-- Remark
-
-Validation rules include:
-
-- required field checks
-- phone number format checks
-- positive weight checks
-- positive integer quantity checks
-- allowed temperature zone values: `常温` / `冷藏` / `冷冻`
-- duplicate external code detection
-
-## Project Structure
-
-```text
-.
-├─ prisma/
-│  └─ schema.prisma
-├─ src/
-│  ├─ app/
-│  │  ├─ api/
-│  │  │  ├─ mappings/
-│  │  │  └─ orders/
-│  │  ├─ globals.css
-│  │  ├─ layout.tsx
-│  │  └─ page.tsx
-│  ├─ components/
-│  │  ├─ EditableGrid.tsx
-│  │  ├─ OperationsWorkbench.tsx
-│  │  ├─ ShipmentHistory.tsx
-│  │  └─ TemplateMappingDialog.tsx
-│  ├─ lib/
-│  │  └─ prisma.ts
-│  └─ utils/
-│     └─ excel-tools.ts
-├─ excel/
-├─ package.json
-└─ README.md
+```env
+DATABASE_URL=your_neon_or_postgres_url
+LLM_BASE_URL=https://988665.xyz/v1
+LLM_API_KEY=your_llm_api_key
+LLM_MODEL=gpt-5.5
 ```
 
-## Getting Started
+代码通过 `src/lib/llm.ts` 读取环境变量，不在业务代码中硬编码 base url、api key 或 model。
 
-### 1. Install dependencies
+## 启动
 
 ```bash
 npm install
+npx prisma generate
+npm run dev
 ```
 
-### 2. Configure environment variables
+本地访问 [http://localhost:3000](http://localhost:3000)。如果 3000 被占用，可使用：
 
-Create a `.env` file in the project root:
-
-```env
-DATABASE_URL=your_postgresql_connection_string
+```bash
+npm run dev -- -p 3001
 ```
 
-### 3. Sync the database schema
+## 数据库
+
+Prisma schema 已升级为新试卷字段，并保留 V1 旧列/旧表为兼容结构。部署前需要在目标数据库同步 schema：
 
 ```bash
 npx prisma db push
 ```
 
-### 4. Start the development server
+如果远程数据库提示 schema engine 或权限问题，请在 Neon / Vercel Marketplace 数据库控制台确认连接串权限后再同步。
+
+## API
+
+- `GET /api/mappings`：读取已保存解析规则列表。
+- `POST /api/mappings`：保存当前确认后的解析规则。
+- `DELETE /api/mappings?id=...`：删除解析规则。
+- `POST /api/rules/generate`：调用 LLM 根据文件结构生成推荐规则。
+- `POST /api/files/extract`：抽取 Word / PDF 文本结构。
+- `POST /api/rules/execute`：按确认后的文本规则解析 Word / PDF。
+- `GET /api/orders`：分页筛选历史已导入运单。
+- `POST /api/orders`：批量提交解析后的明细。
+- `POST /api/orders/check-duplicates`：检查外部编码是否已存在。
+
+## 验证
 
 ```bash
-npm run dev
-```
-
-Then open [http://localhost:3000](http://localhost:3000).
-
-## Available Scripts
-
-```bash
-npm run dev
-npm run build
-npm run start
 npm run lint
+npm run build
+npx prisma validate
 ```
-
-## API Overview
-
-### `GET /api/mappings`
-
-Fetch a saved mapping rule by header fingerprint.
-
-### `POST /api/mappings`
-
-Create or update a template mapping rule.
-
-### `GET /api/orders`
-
-Fetch shipment history with pagination and filters.
-
-### `POST /api/orders`
-
-Submit a batch of orders into the database.
-
-### `POST /api/orders/check-duplicates`
-
-Check whether external codes already exist in the database.
-
-## Database Models
-
-### `Order`
-
-Stores submitted shipment/order records.
-
-### `TemplateMapping`
-
-Stores remembered Excel mapping rules keyed by header fingerprint.
-
-## Notes
-
-- This project is designed around multi-template Excel import scenarios.
-- Business logic is focused on shipment order ingestion and validation.
-- The UI is intentionally distinct from a generic admin dashboard, while the import workflow remains practical and fast to use.
-
-## License
-
-This project is for learning and demonstration purposes.

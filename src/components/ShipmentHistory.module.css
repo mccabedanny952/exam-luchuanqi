@@ -1,70 +1,82 @@
 .stack {
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: 12px;
 }
 
 .filters {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 14px;
+  grid-template-columns: minmax(260px, 1fr) 190px 190px auto;
+  gap: 10px;
   align-items: end;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--panel-soft);
 }
 
 .filters label {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  font-size: 13px;
+  gap: 6px;
   color: var(--ink-soft);
+  font-size: 13px;
   font-weight: 700;
 }
 
 .filters input {
-  min-height: 46px;
-  padding: 10px 14px;
-  border-radius: 14px;
+  min-height: 34px;
+  padding: 6px 9px;
   border: 1px solid var(--line);
-  background: rgba(255, 253, 249, 0.88);
+  border-radius: 4px;
+  background: #fff;
   outline: none;
 }
 
-.filterActions {
+.filters input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(15, 198, 194, 0.12);
+}
+
+.filterActions,
+.pagerButtons {
   display: flex;
-  gap: 10px;
+  gap: 8px;
+  align-items: center;
 }
 
 .primaryButton,
 .secondaryButton,
 .pagerButtons button {
-  min-height: 46px;
-  padding: 0 16px;
-  border-radius: 14px;
+  min-height: 34px;
+  padding: 0 14px;
+  border-radius: 4px;
   font-weight: 800;
 }
 
 .primaryButton {
   border: 0;
-  background: linear-gradient(135deg, var(--accent), #db7833);
-  color: white;
+  color: #fff;
+  background: var(--accent);
 }
 
 .secondaryButton,
 .pagerButtons button {
   border: 1px solid var(--line);
-  background: rgba(255, 253, 249, 0.92);
+  color: var(--ink-main);
+  background: #fff;
 }
 
 .secondaryButton:disabled,
 .pagerButtons button:disabled {
-  opacity: 0.45;
+  opacity: 0.48;
   cursor: not-allowed;
 }
 
 .tableCard {
-  border-radius: 22px;
   border: 1px solid var(--line);
-  background: rgba(255, 255, 255, 0.48);
+  border-radius: 4px;
+  background: #fff;
 }
 
 .tableWrap {
@@ -73,26 +85,36 @@
 
 .table {
   width: 100%;
-  min-width: 960px;
+  min-width: 1260px;
 }
 
 .table th,
 .table td {
-  padding: 14px 16px;
-  border-bottom: 1px solid rgba(91, 79, 58, 0.12);
+  padding: 10px 12px;
+  border-bottom: 1px solid #edf3f6;
   text-align: left;
+  vertical-align: top;
 }
 
 .table th {
-  background: #f6ead4;
+  position: sticky;
+  top: 0;
+  color: #39566a;
+  background: #f3fbfd;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.table td {
+  color: #24364c;
   font-size: 13px;
 }
 
 .emptyState,
 .emptyCell {
-  padding: 44px 20px;
-  text-align: center;
+  padding: 42px 20px;
   color: var(--ink-soft);
+  text-align: center;
 }
 
 .pager {
@@ -102,24 +124,14 @@
   color: var(--ink-soft);
 }
 
-.pagerButtons {
-  display: flex;
-  gap: 10px;
-  align-items: center;
-}
-
-@media (max-width: 900px) {
+@media (max-width: 980px) {
   .filters {
     grid-template-columns: 1fr;
   }
 
-  .filterActions {
-    flex-wrap: wrap;
-  }
-
   .pager {
-    flex-direction: column;
     align-items: flex-start;
-    gap: 12px;
+    flex-direction: column;
+    gap: 10px;
   }
 }

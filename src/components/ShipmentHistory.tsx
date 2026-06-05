@@ -6,12 +6,14 @@ import styles from "./ShipmentHistory.module.css";
 interface OrderRecord {
   id: string;
   externalCode: string | null;
-  senderName: string;
-  receiverName: string;
-  receiverPhone: string;
-  weight: number;
-  count: number;
-  tempZone: string;
+  storeName: string | null;
+  receiverName: string | null;
+  receiverPhone: string | null;
+  receiverAddress: string | null;
+  skuCode: string;
+  skuName: string;
+  skuQuantity: number;
+  skuSpec: string | null;
   createdAt: string;
 }
 
@@ -79,7 +81,7 @@ export default function ShipmentHistory() {
           <input
             value={search}
             onChange={(event) => setSearch(event.target.value)}
-            placeholder="外部编码 / 收件人姓名"
+            placeholder="外部编码 / 收件人 / 门店 / SKU"
           />
         </label>
         <label>
@@ -112,26 +114,28 @@ export default function ShipmentHistory() {
 
       <div className={styles.tableCard}>
         {loading ? (
-          <div className={styles.emptyState}>正在读取数据库中的历史运单...</div>
+          <div className={styles.emptyState}>正在读取数据库中的入库记录...</div>
         ) : (
           <div className={styles.tableWrap}>
             <table className={styles.table}>
               <thead>
                 <tr>
                   <th>外部编码</th>
-                  <th>发件人</th>
+                  <th>收货门店</th>
                   <th>收件人</th>
                   <th>收件电话</th>
-                  <th>重量(kg)</th>
-                  <th>件数</th>
-                  <th>温层</th>
+                  <th>收件地址</th>
+                  <th>SKU编码</th>
+                  <th>SKU名称</th>
+                  <th>数量</th>
+                  <th>规格</th>
                   <th>提交时间</th>
                 </tr>
               </thead>
               <tbody>
                 {orders.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className={styles.emptyCell}>
+                    <td colSpan={10} className={styles.emptyCell}>
                       暂无数据
                     </td>
                   </tr>
@@ -139,12 +143,14 @@ export default function ShipmentHistory() {
                   orders.map((order) => (
                     <tr key={order.id}>
                       <td>{order.externalCode || "-"}</td>
-                      <td>{order.senderName}</td>
-                      <td>{order.receiverName}</td>
-                      <td>{order.receiverPhone}</td>
-                      <td>{order.weight}</td>
-                      <td>{order.count}</td>
-                      <td>{order.tempZone}</td>
+                      <td>{order.storeName || "-"}</td>
+                      <td>{order.receiverName || "-"}</td>
+                      <td>{order.receiverPhone || "-"}</td>
+                      <td>{order.receiverAddress || "-"}</td>
+                      <td>{order.skuCode}</td>
+                      <td>{order.skuName}</td>
+                      <td>{order.skuQuantity}</td>
+                      <td>{order.skuSpec || "-"}</td>
                       <td>{new Date(order.createdAt).toLocaleString("zh-CN")}</td>
                     </tr>
                   ))

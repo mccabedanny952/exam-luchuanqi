@@ -1,8 +1,15 @@
 "use client";
 
-import { startTransition, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
+import {
+  startTransition,
+  useDeferredValue,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import type { MappingState, ParsedRow, ValidationIssue } from "@/utils/excel-tools";
-import { SYSTEM_FIELDS } from "@/utils/excel-tools";
+import { SYSTEM_FIELDS, getMappedValue } from "@/utils/excel-tools";
 import styles from "./EditableGrid.module.css";
 
 interface EditableGridProps {
@@ -12,6 +19,9 @@ interface EditableGridProps {
   onValidationComplete: (isValid: boolean, issues: ValidationIssue[]) => void;
 }
 
+const ROW_HEIGHT = 58;
+const OVERSCAN = 12;
+
 export default function EditableGrid({
   data,
   mapping,
@@ -20,16 +30,13 @@ export default function EditableGrid({
 }: EditableGridProps) {
   const [editingCell, setEditingCell] = useState<{ rowIndex: number; fieldKey: string } | null>(null);
   const [dbDuplicates, setDbDuplicates] = useState<Set<string>>(new Set());
+  const [scrollTop, setScrollTop] = useState(0);
   const lastCodesKeyRef = useRef("");
   const deferredData = useDeferredValue(data);
 
   useEffect(() => {
-    if (!mapping.externalCode) {
-      return;
-    }
-
     const codes = deferredData
-      .map((row) => String(row[mapping.externalCode ?? ""] ?? "").trim())
+      .map((row) => getMappedValue(row, mapping, "externalCode"))
       .filter((value) => value !== "");
 
     const codesKey = [...codes].sort().join(",");
@@ -43,11 +50,10 @@ export default function EditableGrid({
       return;
     }
 
-    const uniqueCodes = [...new Set(codes)];
     fetch("/api/orders/check-duplicates", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ codes: uniqueCodes }),
+      body: JSON.stringify({ codes: [...new Set(codes)] }),
     })
       .then((response) => response.json())
       .then((payload) => {
@@ -60,76 +66,61 @@ export default function EditableGrid({
 
   const validationIssues = useMemo<ValidationIssue[]>(() => {
     const nextIssues: ValidationIssue[] = [];
-    const activeDbDuplicates = mapping.externalCode ? dbDuplicates : new Set<string>();
-
     const externalCodeMap = new Map<string, number[]>();
-    if (mapping.externalCode) {
-      deferredData.forEach((row, rowIndex) => {
-        const code = String(row[mapping.externalCode ?? ""] ?? "").trim();
-        if (!code) {
-          return;
-        }
-        const group = externalCodeMap.get(code) ?? [];
-        group.push(rowIndex);
-        externalCodeMap.set(code, group);
-      });
-    }
 
     deferredData.forEach((row, rowIndex) => {
-      SYSTEM_FIELDS.forEach((field) => {
-        const sourceHeader = mapping[field.key];
-        if (!sourceHeader) {
-          if (field.required) {
-            nextIssues.push({ rowIndex, fieldKey: field.key, msg: "字段未映射" });
-          }
-          return;
-        }
+      const code = getMappedValue(row, mapping, "externalCode");
+      if (!code) {
+        return;
+      }
+      const group = externalCodeMap.get(code) ?? [];
+      group.push(rowIndex);
+      externalCodeMap.set(code, group);
+    });
 
-        const rawValue = row[sourceHeader];
-        const textValue = String(rawValue ?? "").trim();
+    deferredData.forEach((row, rowIndex) => {
+      const storeName = getMappedValue(row, mapping, "storeName");
+      const receiverName = getMappedValue(row, mapping, "receiverName");
+      const receiverPhone = getMappedValue(row, mapping, "receiverPhone");
+      const receiverAddress = getMappedValue(row, mapping, "receiverAddress");
+      const hasStoreGroup = storeName !== "";
+      const hasReceiverGroup = receiverName !== "" && receiverPhone !== "" && receiverAddress !== "";
+
+      if (!hasStoreGroup && !hasReceiverGroup) {
+        nextIssues.push({
+          rowIndex,
+          fieldKey: "storeName",
+          msg: "收货门店或收件人姓名+电话+地址需二选一",
+        });
+      }
+
+      for (const field of SYSTEM_FIELDS) {
+        const textValue = getMappedValue(row, mapping, field.key);
 
         if (field.required && textValue === "") {
           nextIssues.push({ rowIndex, fieldKey: field.key, msg: "必填字段缺失" });
-          return;
+          continue;
         }
 
         if (textValue === "") {
-          return;
+          continue;
         }
 
-        if (field.key === "senderPhone" || field.key === "receiverPhone") {
+        if (field.key === "receiverPhone") {
           const digits = textValue.replace(/\D/g, "");
           if (digits.length < 7 || digits.length > 15) {
             nextIssues.push({ rowIndex, fieldKey: field.key, msg: "电话格式错误" });
           }
         }
 
-        if (field.key === "weight") {
-          const weight = parseFloat(textValue);
-          if (Number.isNaN(weight) || weight <= 0) {
+        if (field.key === "skuQuantity") {
+          const quantity = Number(textValue);
+          if (Number.isNaN(quantity) || quantity <= 0) {
             nextIssues.push({ rowIndex, fieldKey: field.key, msg: "必须为正数" });
           }
         }
 
-        if (field.key === "count") {
-          const count = Number(textValue);
-          if (Number.isNaN(count) || !Number.isInteger(count) || count <= 0) {
-            nextIssues.push({ rowIndex, fieldKey: field.key, msg: "必须为正整数" });
-          }
-        }
-
-        if (field.key === "tempZone") {
-          const allowed = ["常温", "冷藏", "冷冻"];
-          if (!allowed.includes(textValue)) {
-            nextIssues.push({
-              rowIndex,
-              fieldKey: field.key,
-              msg: "不在允许范围内(常温/冷藏/冷冻)",
-            });
-          }
-        }
-
-        if (field.key === "externalCode" && textValue) {
+        if (field.key === "externalCode") {
           const duplicateRows = externalCodeMap.get(textValue);
           if (duplicateRows && duplicateRows.length > 1) {
             const rowLabels = duplicateRows
@@ -142,7 +133,7 @@ export default function EditableGrid({
             });
           }
 
-          if (activeDbDuplicates.has(textValue)) {
+          if (dbDuplicates.has(textValue)) {
             nextIssues.push({
               rowIndex,
               fieldKey: field.key,
@@ -150,7 +141,7 @@ export default function EditableGrid({
             });
           }
         }
-      });
+      }
     });
 
     return nextIssues;
@@ -159,6 +150,37 @@ export default function EditableGrid({
   useEffect(() => {
     onValidationComplete(validationIssues.length === 0, validationIssues);
   }, [onValidationComplete, validationIssues]);
+
+  const virtualState = useMemo(() => {
+    if (data.length <= 220) {
+      return {
+        startIndex: 0,
+        endIndex: data.length,
+        topHeight: 0,
+        bottomHeight: 0,
+      };
+    }
+
+    const visibleCount = 42;
+    const startIndex = Math.max(0, Math.floor(scrollTop / ROW_HEIGHT) - OVERSCAN);
+    const endIndex = Math.min(data.length, startIndex + visibleCount + OVERSCAN * 2);
+    return {
+      startIndex,
+      endIndex,
+      topHeight: startIndex * ROW_HEIGHT,
+      bottomHeight: Math.max(0, (data.length - endIndex) * ROW_HEIGHT),
+    };
+  }, [data.length, scrollTop]);
+
+  const issuesByRow = useMemo(() => {
+    const map = new Map<number, ValidationIssue[]>();
+    validationIssues.forEach((issue) => {
+      const bucket = map.get(issue.rowIndex) ?? [];
+      bucket.push(issue);
+      map.set(issue.rowIndex, bucket);
+    });
+    return map;
+  }, [validationIssues]);
 
   const updateCell = (rowIndex: number, fieldKey: string, nextValue: string) => {
     const sourceHeader = mapping[fieldKey as keyof MappingState];
@@ -202,9 +224,14 @@ export default function EditableGrid({
     }
   };
 
+  const visibleRows = data.slice(virtualState.startIndex, virtualState.endIndex);
+
   return (
     <div className={styles.frame}>
-      <div className={styles.tableWrap}>
+      <div
+        className={styles.tableWrap}
+        onScroll={(event) => setScrollTop(event.currentTarget.scrollTop)}
+      >
         <table className={styles.table}>
           <thead>
             <tr>
@@ -220,10 +247,20 @@ export default function EditableGrid({
             </tr>
           </thead>
           <tbody>
-            {data.map((row, rowIndex) => {
-              const rowIssues = validationIssues.filter((issue) => issue.rowIndex === rowIndex);
+            {virtualState.topHeight > 0 && (
+              <tr aria-hidden="true">
+                <td colSpan={SYSTEM_FIELDS.length + 2} style={{ height: virtualState.topHeight, padding: 0 }} />
+              </tr>
+            )}
+
+            {visibleRows.map((row, offsetIndex) => {
+              const rowIndex = virtualState.startIndex + offsetIndex;
+              const rowIssues = issuesByRow.get(rowIndex) ?? [];
               return (
-                <tr key={`${row._originalRowIndex}-${rowIndex}`} className={rowIssues.length ? styles.rowWarn : ""}>
+                <tr
+                  key={`${row._originalRowIndex}-${rowIndex}`}
+                  className={rowIssues.length ? styles.rowWarn : ""}
+                >
                   <td className={styles.indexCol}>{row._originalRowIndex}</td>
                   {SYSTEM_FIELDS.map((field) => {
                     const sourceHeader = mapping[field.key];
@@ -289,6 +326,15 @@ export default function EditableGrid({
                 </tr>
               );
             })}
+
+            {virtualState.bottomHeight > 0 && (
+              <tr aria-hidden="true">
+                <td
+                  colSpan={SYSTEM_FIELDS.length + 2}
+                  style={{ height: virtualState.bottomHeight, padding: 0 }}
+                />
+              </tr>
+            )}
           </tbody>
         </table>
       </div>

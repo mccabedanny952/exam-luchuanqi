@@ -1,30 +1,25 @@
 :root {
-  --ink-strong: #1d2228;
-  --ink-main: #31404a;
-  --ink-soft: #667784;
-  --paper: #fffaf1;
-  --panel: rgba(255, 248, 236, 0.88);
-  --panel-solid: #fffdfa;
-  --line: rgba(91, 79, 58, 0.16);
-  --line-strong: rgba(91, 79, 58, 0.28);
-  --accent: #cb5d2c;
-  --accent-strong: #a44618;
-  --accent-soft: rgba(203, 93, 44, 0.14);
-  --teal: #0b7d77;
-  --teal-soft: rgba(11, 125, 119, 0.14);
-  --gold: #c89b2a;
-  --gold-soft: rgba(200, 155, 42, 0.16);
-  --danger: #c03b33;
-  --danger-soft: rgba(192, 59, 51, 0.12);
-  --success: #1f7a48;
-  --success-soft: rgba(31, 122, 72, 0.14);
-  --shadow-xl: 0 24px 80px rgba(74, 52, 30, 0.12);
-  --shadow-lg: 0 12px 36px rgba(74, 52, 30, 0.08);
-  --shadow-sm: 0 2px 10px rgba(74, 52, 30, 0.05);
-  --radius-xl: 28px;
-  --radius-lg: 22px;
-  --radius-md: 16px;
-  --radius-sm: 12px;
+  --ink-strong: #172b4d;
+  --ink-main: #34495e;
+  --ink-soft: #6b8393;
+  --paper: #eef6fa;
+  --panel: #ffffff;
+  --panel-soft: #f7fbfd;
+  --line: #dbe9ef;
+  --line-strong: #b9d5df;
+  --accent: #0fc6c2;
+  --accent-strong: #029b98;
+  --accent-soft: #efffff;
+  --nav: #00364a;
+  --nav-strong: #002d40;
+  --danger: #d94747;
+  --danger-soft: #fff7f7;
+  --warning: #a66900;
+  --warning-soft: #fffbe8;
+  --success: #0a8f6a;
+  --success-soft: #effaf5;
+  --shadow-lg: 0 4px 16px rgba(21, 69, 92, 0.16);
+  --shadow-sm: 0 1px 6px rgba(21, 69, 92, 0.08);
 }
 
 *,
@@ -40,12 +35,9 @@ body {
 }
 
 body {
-  font-family: "Avenir Next", "Segoe UI Variable Text", "PingFang SC", "Microsoft YaHei", sans-serif;
+  font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", Arial, sans-serif;
   color: var(--ink-strong);
-  background:
-    radial-gradient(circle at top left, rgba(200, 155, 42, 0.16), transparent 28%),
-    radial-gradient(circle at right center, rgba(11, 125, 119, 0.12), transparent 24%),
-    linear-gradient(180deg, #f8f1e3 0%, #f6efe7 38%, #f4efe8 100%);
+  background: var(--paper);
   -webkit-font-smoothing: antialiased;
 }
 
@@ -73,7 +65,7 @@ table {
 @keyframes riseIn {
   from {
     opacity: 0;
-    transform: translateY(14px);
+    transform: translateY(6px);
   }
   to {
     opacity: 1;
@@ -81,15 +73,6 @@ table {
   }
 }
 
-@keyframes pulseBar {
-  0% {
-    transform: translateX(-100%);
-  }
-  100% {
-    transform: translateX(300%);
-  }
-}
-
 .page-enter {
-  animation: riseIn 0.45s ease-out;
+  animation: riseIn 0.22s ease-out;
 }
