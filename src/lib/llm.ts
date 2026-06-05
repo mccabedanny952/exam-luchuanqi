@@ -82,7 +82,7 @@ function parseJsonResponse(text: string): LlmApiPayload {
 export async function requestLlmJson<T>({
   messages,
   temperature = 0.2,
-  timeoutMs = 45_000,
+  timeoutMs = 90_000,
   maxTokens = 4096,
 }: LlmJsonOptions): Promise<T> {
   const { baseUrl, apiKey, model } = getLlmConfig();
@@ -125,6 +125,11 @@ export async function requestLlmJson<T>({
     }
 
     return JSON.parse(stripJsonFence(content)) as T;
+  } catch (error) {
+    if (error instanceof Error && (error.name === "AbortError" || /aborted/i.test(error.message))) {
+      throw new Error(`大模型请求超过 ${Math.round(timeoutMs / 1000)} 秒未返回，请稍后重试，或缩短文本内容后再试`);
+    }
+    throw error;
   } finally {
     clearTimeout(timer);
   }

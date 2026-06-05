@@ -66,14 +66,18 @@ export default function RuleManagementPanel({
   const parsedRecords = records
     .map((record) => ({ record, rule: safeParseRule(record) }))
     .filter((item): item is { record: SavedRuleRecord; rule: ParsingRule } => Boolean(item.rule));
+  const latestRecord = parsedRecords
+    .map(({ record }) => new Date(record.updatedAt).getTime())
+    .filter((time) => !Number.isNaN(time))
+    .sort((a, b) => b - a)[0];
 
   return (
     <section className={styles.panel}>
-      <div className={styles.header}>
+      <div className={styles.toolbar}>
         <div>
-          <p>Mapping Library</p>
-          <h1>字段规则库</h1>
-          <span>集中维护文件结构、字段来源和处理模式；AI 只负责起草，最终规则由人工确认。</span>
+          <span>规则台账</span>
+          <h2>解析规则校准台</h2>
+          <p>沉淀不同附件结构的字段映射，AI 只负责起草，最终解析口径由人工确认。</p>
         </div>
         <div className={styles.actions}>
           <button className={styles.secondaryButton} onClick={onRefresh}>
@@ -87,87 +91,88 @@ export default function RuleManagementPanel({
         </div>
       </div>
 
-      {storageWarning && (
-        <div className={styles.warning}>
-          <AlertCircle size={16} />
-          <span>{storageWarning}</span>
-        </div>
-      )}
+      <div className={styles.ledger}>
+        <aside className={styles.ruleRail}>
+          {storageWarning && (
+            <div className={styles.warning}>
+              <AlertCircle size={16} />
+              <span>{storageWarning}</span>
+            </div>
+          )}
+          <div className={styles.railItem}>
+            <Database size={17} />
+            <span>规则总数</span>
+            <strong>{records.length}</strong>
+          </div>
+          <div className={styles.railItem}>
+            <FileJson size={17} />
+            <span>可解析项</span>
+            <strong>{parsedRecords.length}</strong>
+          </div>
+          <div className={styles.railItem}>
+            <Copy size={17} />
+            <span>最近维护</span>
+            <strong>{latestRecord ? formatDate(new Date(latestRecord).toISOString()) : "-"}</strong>
+          </div>
+        </aside>
 
-      <div className={styles.summaryGrid}>
-        <div className={styles.summaryCard}>
-          <Database size={18} />
-          <span>库存规则</span>
-          <strong>{records.length}</strong>
-        </div>
-        <div className={styles.summaryCard}>
-          <FileJson size={18} />
-          <span>可维护项</span>
-          <strong>{parsedRecords.length}</strong>
-        </div>
-        <div className={styles.summaryCard}>
-          <Copy size={18} />
-          <span>维护动作</span>
-          <strong>新增 / 校准 / 复用 / 移除</strong>
-        </div>
+        {parsedRecords.length === 0 ? (
+          <div className={styles.emptyState}>
+            <FileJson size={42} />
+            <strong>规则台账暂无可用项</strong>
+            <span>可以先创建一条通用字段映射，也可以在文件接入页让 AI 起草后写入规则库。</span>
+            <button className={styles.primaryButton} onClick={onCreate}>
+              <Plus size={16} />
+              创建第一条草稿
+            </button>
+          </div>
+        ) : (
+          <div className={styles.ruleTableWrap}>
+            <table className={styles.ruleTable}>
+              <thead>
+                <tr>
+                  <th>规则名称 / 指纹</th>
+                  <th>附件类型</th>
+                  <th>模式</th>
+                  <th>字段覆盖</th>
+                  <th>更新时间</th>
+                  <th>维护动作</th>
+                </tr>
+              </thead>
+              <tbody>
+                {parsedRecords.map(({ record, rule }) => {
+                  const coverage = getMappingConfidence(rule.mapping);
+                  return (
+                    <tr key={record.id || record.fingerprint}>
+                      <td>
+                        <strong>{rule.name || record.name}</strong>
+                        <span>{record.fingerprint}</span>
+                      </td>
+                      <td>{record.fileType}</td>
+                      <td>{rule.mode}</td>
+                      <td>{coverage.mapped}/{coverage.total}</td>
+                      <td>{formatDate(record.updatedAt)}</td>
+                      <td>
+                        <div className={styles.rowActions}>
+                          <button title="校准规则" onClick={() => onEdit(record, rule)}>
+                            <Pencil size={14} />
+                          </button>
+                          <button title="复用为新规则" onClick={() => onCopy(record, rule)}>
+                            <Copy size={14} />
+                          </button>
+                          <button title="移除规则" className={styles.dangerButton} onClick={() => onDelete(record)}>
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
-
-      {parsedRecords.length === 0 ? (
-        <div className={styles.emptyState}>
-          <FileJson size={44} />
-          <strong>规则库暂无可用项</strong>
-          <span>可以先创建一条通用字段映射，也可以在文件接入页让 AI 起草后写入规则库。</span>
-          <button className={styles.primaryButton} onClick={onCreate}>
-            <Plus size={16} />
-            创建第一条草稿
-          </button>
-        </div>
-      ) : (
-        <div className={styles.ruleTableWrap}>
-          <table className={styles.ruleTable}>
-            <thead>
-              <tr>
-                <th>规则标识</th>
-                <th>文件类型</th>
-                <th>处理模式</th>
-                <th>字段覆盖</th>
-                <th>更新时间</th>
-                <th>维护</th>
-              </tr>
-            </thead>
-            <tbody>
-              {parsedRecords.map(({ record, rule }) => {
-                const coverage = getMappingConfidence(rule.mapping);
-                return (
-                  <tr key={record.id || record.fingerprint}>
-                    <td>
-                      <strong>{rule.name || record.name}</strong>
-                      <span>{record.fingerprint}</span>
-                    </td>
-                    <td>{record.fileType}</td>
-                    <td>{rule.mode}</td>
-                    <td>{coverage.mapped}/{coverage.total}</td>
-                    <td>{formatDate(record.updatedAt)}</td>
-                    <td>
-                      <div className={styles.rowActions}>
-                        <button title="校准规则" onClick={() => onEdit(record, rule)}>
-                          <Pencil size={14} />
-                        </button>
-                        <button title="复用为新规则" onClick={() => onCopy(record, rule)}>
-                          <Copy size={14} />
-                        </button>
-                        <button title="移除规则" className={styles.dangerButton} onClick={() => onDelete(record)}>
-                          <Trash2 size={14} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
     </section>
   );
 }

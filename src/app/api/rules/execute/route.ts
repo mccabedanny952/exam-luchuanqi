@@ -7,6 +7,8 @@ import {
   type ParsingRule,
 } from "@/utils/excel-tools";
 
+export const maxDuration = 300;
+
 interface ExecuteRuleBody {
   fileName?: string;
   text?: string;
@@ -36,7 +38,8 @@ export async function POST(request: Request) {
 
     const rule = normalizeRule(body.rule, [], body.fileName || "文本文件");
     const response = await requestLlmJson<ExecuteRuleResponse>({
-      timeoutMs: 60_000,
+      timeoutMs: 180_000,
+      maxTokens: 8192,
       messages: [
         { role: "system", content: SYSTEM_PROMPT },
         {

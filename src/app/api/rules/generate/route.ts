@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { requestLlmJson } from "@/lib/llm";
 import { normalizeRule, type FileStructureSummary, type ParsingRule } from "@/utils/excel-tools";
 
+export const maxDuration = 180;
+
 interface GenerateRuleBody {
   summary?: FileStructureSummary;
 }
@@ -31,6 +33,7 @@ export async function POST(request: Request) {
     }
 
     const response = await requestLlmJson<LlmRuleResponse>({
+      timeoutMs: 120_000,
       messages: [
         { role: "system", content: SYSTEM_PROMPT },
         {

@@ -5,7 +5,6 @@ import * as XLSX from "xlsx";
 import {
   AlertCircle,
   CheckCircle2,
-  ChevronLeft,
   Database,
   Download,
   FileJson,
@@ -446,7 +445,10 @@ export default function OperationsWorkbench() {
     }
 
     if (!allowDraft && !isRuleReady) {
-      pushToast("warning", "请先手动选择规则，或进入校准弹窗确认当前草稿");
+      setRuleDialogPurpose("parse");
+      setManagedRuleDraft(null);
+      setRuleDialogOpen(true);
+      pushToast("warning", "请先确认当前规则，确认后会继续生成明细");
       return;
     }
 
@@ -454,6 +456,8 @@ export default function OperationsWorkbench() {
     setParseProgress({ pct: 0, current: 0, total: 0 });
     setSubmitResult(null);
     setLlmWarnings([]);
+
+    let textProgressTimer: number | null = null;
 
     try {
       if (fileKind === "spreadsheet") {
@@ -478,7 +482,17 @@ export default function OperationsWorkbench() {
           throw new Error("文本内容尚未抽取，请重新接入文件");
         }
 
-        setParseProgress({ pct: 10, current: 0, total: 1 });
+        setParseProgress({ pct: 12, current: 0, total: 1 });
+        textProgressTimer = window.setInterval(() => {
+          setParseProgress((current) => {
+            if (current.pct >= 88) {
+              return current;
+            }
+            const step = current.pct < 42 ? 4 : current.pct < 68 ? 2 : 1;
+            return { pct: Math.min(88, current.pct + step), current: 0, total: 1 };
+          });
+        }, 1600);
+
         const response = await fetch("/api/rules/execute", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -488,7 +502,14 @@ export default function OperationsWorkbench() {
             rule,
           }),
         });
-        const payload = await response.json();
+
+        if (textProgressTimer) {
+          window.clearInterval(textProgressTimer);
+          textProgressTimer = null;
+        }
+
+        setParseProgress({ pct: 92, current: 0, total: 1 });
+        const payload = await response.json().catch(() => ({}));
         if (!response.ok) {
           throw new Error(payload.error || "明细生成失败");
         }
@@ -509,6 +530,9 @@ export default function OperationsWorkbench() {
       const message = error instanceof Error ? error.message : "未知错误";
       pushToast("error", `生成失败：${message}`);
     } finally {
+      if (textProgressTimer) {
+        window.clearInterval(textProgressTimer);
+      }
       setIsParsing(false);
     }
   };
@@ -624,22 +648,47 @@ export default function OperationsWorkbench() {
     { label: "待修正", value: issues.length, icon: AlertCircle },
   ];
 
-  const currentTabTitle =
+  const pageTitle =
     activeView === "home"
-      ? "概览"
+      ? "工作总览"
       : activeView === "rules"
         ? "规则校准"
         : activeView === "history"
           ? "入库记录"
           : "文件接入";
-  const currentBreadcrumb =
+  const pageHint =
     activeView === "home"
-      ? "业务概览"
+      ? "从附件接入、字段规则到明细入库，按冷链转运作业节奏组织。"
       : activeView === "rules"
-        ? "规则校准"
+        ? "维护已沉淀的字段映射，人工确认后才作为解析依据。"
         : activeView === "history"
-          ? "入库记录"
-          : "转运文件接入";
+          ? "查询已写入数据库的转运明细，提交时间只在点击搜索后生效。"
+          : "接入考试附件，确认规则，再生成可编辑的转运明细。";
+  const processSteps = [
+    {
+      code: "01",
+      title: "接入",
+      desc: selectedFile ? selectedFile.name : "等待上传附件",
+      done: Boolean(fileSummary),
+    },
+    {
+      code: "02",
+      title: "校准",
+      desc: isRuleReady ? "规则已人工确认" : currentRule ? "规则待确认" : "暂无规则",
+      done: isRuleReady,
+    },
+    {
+      code: "03",
+      title: "生成",
+      desc: rows.length > 0 ? `${rows.length} 条明细待核对` : "尚未生成明细",
+      done: rows.length > 0,
+    },
+  ];
+  const pageMetrics = [
+    { label: "文件", value: selectedFile ? "已接入" : "待接入" },
+    { label: "规则", value: isRuleReady ? "已确认" : currentRule ? "待确认" : "未选择" },
+    { label: "明细", value: rows.length ? `${rows.length} 行` : "-" },
+  ];
   const dialogRule =
     ruleDialogPurpose === "manage" && managedRuleDraft
       ? managedRuleDraft.rule
@@ -690,78 +739,99 @@ export default function OperationsWorkbench() {
 
       <aside className={styles.sidebar}>
         <div className={styles.siteSelect}>
-          <Menu size={16} />
-          <span>转运业务台</span>
+          <Menu size={17} />
+          <strong>转运</strong>
+          <span>作业台</span>
         </div>
-        <button
-          className={`${styles.navItem} ${activeView === "home" ? styles.navItem_active : ""}`}
-          onClick={() => setActiveView("home")}
-        >
-          <Home size={16} />
-          工作总览
-        </button>
-        <button
-          className={`${styles.navItem} ${activeView === "ingest" || activeView === "preview" ? styles.navItem_active : ""}`}
-          onClick={() => setActiveView(rows.length > 0 ? "preview" : "ingest")}
-        >
-          <UploadCloud size={16} />
-          文件接入
-        </button>
-        <button
-          className={`${styles.navItem} ${activeView === "rules" ? styles.navItem_active : ""}`}
-          onClick={() => {
-            void loadRules();
-            setActiveView("rules");
-          }}
-        >
-          <ListChecks size={16} />
-          规则校准
-        </button>
-        <button
-          className={`${styles.navItem} ${activeView === "history" ? styles.navItem_active : ""}`}
-          onClick={() => setActiveView("history")}
-        >
-          <Database size={16} />
-          入库记录
-        </button>
+        <nav className={styles.navStack} aria-label="转运作业导航">
+          <button
+            className={`${styles.navItem} ${activeView === "home" ? styles.navItem_active : ""}`}
+            onClick={() => setActiveView("home")}
+            title="工作总览"
+          >
+            <Home size={18} />
+            <span>总览</span>
+          </button>
+          <button
+            className={`${styles.navItem} ${activeView === "ingest" || activeView === "preview" ? styles.navItem_active : ""}`}
+            onClick={() => setActiveView(rows.length > 0 ? "preview" : "ingest")}
+            title="文件接入"
+          >
+            <UploadCloud size={18} />
+            <span>接入</span>
+          </button>
+          <button
+            className={`${styles.navItem} ${activeView === "rules" ? styles.navItem_active : ""}`}
+            onClick={() => {
+              void loadRules();
+              setActiveView("rules");
+            }}
+            title="规则校准"
+          >
+            <ListChecks size={18} />
+            <span>规则</span>
+          </button>
+          <button
+            className={`${styles.navItem} ${activeView === "history" ? styles.navItem_active : ""}`}
+            onClick={() => setActiveView("history")}
+            title="入库记录"
+          >
+            <Database size={18} />
+            <span>记录</span>
+          </button>
+        </nav>
       </aside>
 
       <main className={styles.main}>
-        <div className={styles.tabbar}>
-          <button title="返回">
-            <ChevronLeft size={16} />
-          </button>
-          <span className={styles.tabActive}>{currentTabTitle}</span>
-        </div>
-
-        <div className={styles.breadcrumb}>
-          <span>鲸天系统</span>
-          <span>/</span>
-          <strong>{currentBreadcrumb}</strong>
-        </div>
+        <section className={styles.commandBar}>
+          <div className={styles.commandTitle}>
+            <span>鲸天转运作业</span>
+            <h1>{pageTitle}</h1>
+            <p>{pageHint}</p>
+          </div>
+          <div className={styles.metricStrip}>
+            {pageMetrics.map((item) => (
+              <div key={item.label}>
+                <span>{item.label}</span>
+                <strong>{item.value}</strong>
+              </div>
+            ))}
+          </div>
+        </section>
 
         {activeView === "home" && (
           <section className={styles.homePanel}>
-            <div className={styles.homeHero}>
-              <p>Whale Transfer Desk</p>
-              <h1>转运文件处理台</h1>
-              <span>围绕文件接入、规则校准、明细核对和入库记录组织页面，左侧菜单可直接切换各业务区。</span>
+            <div className={styles.homeBoard}>
+              <div className={styles.homeHeadline}>
+                <span>冷链转运处理线</span>
+                <h2>把不同格式附件收束成可入库明细</h2>
+                <p>页面按真实处理顺序摆放：先接入附件，再确认规则，最后核对并写入数据库。</p>
+              </div>
+              <div className={styles.homeQueue}>
+                {processSteps.map((step) => (
+                  <div key={step.code} className={step.done ? styles.queueItem_done : ""}>
+                    <span>{step.code}</span>
+                    <strong>{step.title}</strong>
+                    <small>{step.desc}</small>
+                  </div>
+                ))}
+              </div>
             </div>
             <div className={styles.homeGrid}>
               <button onClick={() => setActiveView("ingest")}>
                 <UploadCloud size={22} />
-                <strong>文件接入</strong>
-                <span>接入考试附件文件，识别结构并生成待核对明细。</span>
+                <strong>接入考试附件</strong>
+                <span>支持 Excel、Word、PDF，先识别文件结构再进入字段确认。</span>
               </button>
               <button onClick={() => setActiveView("rules")}>
                 <ListChecks size={22} />
-                <strong>规则校准</strong>
-                <span>维护字段映射、处理模式、默认值和补充提取参数。</span>
+                <strong>维护解析口径</strong>
+                <span>查看已保存规则，校准字段映射、默认值和文本抽取方式。</span>
               </button>
               <button onClick={() => setActiveView("history")}>
                 <Database size={22} />
-                <strong>入库记录</strong>
-                <span>查看已提交的转运明细，并按单号、门店和时间查询。</span>
+                <strong>追踪入库结果</strong>
+                <span>按单号、收件人、门店和提交时间查询数据库中的明细。</span>
               </button>
             </div>
           </section>
@@ -769,198 +839,192 @@ export default function OperationsWorkbench() {
 
         {(activeView === "ingest" || activeView === "preview") && (
           <>
-            <section className={styles.heroPanel}>
-              <div className={styles.heroTitleBlock}>
-                <p>Waybill Console / File Intake</p>
-                <h1>转运文件接入台</h1>
-                <span>
-                  先识别附件结构，再校准字段映射，最后生成可检查的转运明细。
-                </span>
-              </div>
-              <div className={styles.heroCards}>
-                <div>
-                  <strong>{selectedFile ? "已接入" : "待接入"}</strong>
-                  <span>文件状态</span>
-                </div>
-                <div>
-                  <strong>{isRuleReady ? "已确认" : currentRule ? "待确认" : "未校准"}</strong>
-                  <span>字段映射</span>
-                </div>
-                <div>
-                  <strong>{rows.length || "-"}</strong>
-                  <span>明细行数</span>
-                </div>
-              </div>
-            </section>
-
-            <section className={styles.workspace}>
-              <div className={styles.card}>
-                <div className={styles.cardHeader}>
-                  <div className={styles.stepBadge}>A</div>
-                  <div>
-                    <h2>接入附件文件</h2>
-                    <p>支持表格、Word 和 PDF；接入后先抽取结构摘要，再进入规则校准。</p>
+            <section className={styles.workbench}>
+              <aside className={styles.stepRail}>
+                {processSteps.map((step) => (
+                  <div key={step.code} className={step.done ? styles.stepRail_done : ""}>
+                    <span>{step.code}</span>
+                    <strong>{step.title}</strong>
+                    <small>{step.desc}</small>
                   </div>
-                </div>
+                ))}
+              </aside>
 
-                <div
-                  className={`${styles.dropZone} ${isDragging ? styles.dropZone_active : ""}`}
-                  onDragOver={(event) => {
-                    event.preventDefault();
-                    setIsDragging(true);
-                  }}
-                  onDragLeave={(event) => {
-                    event.preventDefault();
-                    setIsDragging(false);
-                  }}
-                  onDrop={(event) => {
-                    event.preventDefault();
-                    setIsDragging(false);
-                    if (event.dataTransfer.files?.[0]) {
-                      void handleFileSelection(event.dataTransfer.files[0]);
-                    }
-                  }}
-                  onClick={() => fileInputRef.current?.click()}
-                >
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept=".xlsx,.xls,.docx,.pdf"
-                    className={styles.hiddenInput}
-                    onChange={(event) => {
-                      const file = event.target.files?.[0];
-                      if (file) {
-                        void handleFileSelection(file);
+              <div className={styles.intakeColumn}>
+                <section className={`${styles.stagePanel} ${styles.uploadPanel}`}>
+                  <div className={styles.sectionHeader}>
+                    <span>接入区</span>
+                    <div>
+                      <h2>选择转运附件</h2>
+                      <p>接入后只生成结构草稿，规则需要人工确认后才能解析明细。</p>
+                    </div>
+                  </div>
+
+                  <div
+                    className={`${styles.dropZone} ${isDragging ? styles.dropZone_active : ""}`}
+                    onDragOver={(event) => {
+                      event.preventDefault();
+                      setIsDragging(true);
+                    }}
+                    onDragLeave={(event) => {
+                      event.preventDefault();
+                      setIsDragging(false);
+                    }}
+                    onDrop={(event) => {
+                      event.preventDefault();
+                      setIsDragging(false);
+                      if (event.dataTransfer.files?.[0]) {
+                        void handleFileSelection(event.dataTransfer.files[0]);
                       }
                     }}
-                  />
-                  {isReadingFile ? (
-                    <div className={styles.dropCopy}>
-                      <Loader2 className={styles.spin} size={42} />
-                      <strong>正在识别附件结构</strong>
-                      <span>提取 Sheet、样例行、文本片段和结构指纹...</span>
-                    </div>
-                  ) : (
-                    <div className={styles.dropCopy}>
-                      <UploadCloud size={46} />
-                      <strong>拖入文件或点击选择</strong>
-                      <span>支持 .xlsx/.xls、.docx、.pdf；字段不准时可进入规则栏校正。</span>
+                    onClick={() => fileInputRef.current?.click()}
+                  >
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept=".xlsx,.xls,.docx,.pdf"
+                      className={styles.hiddenInput}
+                      onChange={(event) => {
+                        const file = event.target.files?.[0];
+                        if (file) {
+                          void handleFileSelection(file);
+                        }
+                      }}
+                    />
+                    {isReadingFile ? (
+                      <div className={styles.dropCopy}>
+                        <Loader2 className={styles.spin} size={40} />
+                        <strong>正在抽取附件结构</strong>
+                        <span>读取 Sheet、样例行、文本片段和结构指纹。</span>
+                      </div>
+                    ) : (
+                      <div className={styles.dropCopy}>
+                        <UploadCloud size={44} />
+                        <strong>拖入文件，或点击选择</strong>
+                        <span>支持 .xlsx/.xls、.docx、.pdf。</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {selectedFile && (
+                    <div className={styles.fileInfo}>
+                      <FileText size={16} />
+                      <strong>{selectedFile.name}</strong>
+                      <span>{fileSummary?.fileType ?? fileKind}</span>
+                      <span>{fileSummary?.sheets.length ?? 0} 个结构块</span>
                     </div>
                   )}
-                </div>
+                </section>
 
-                {selectedFile && (
-                  <div className={styles.fileInfo}>
-                    <FileText size={16} />
-                    <strong>{selectedFile.name}</strong>
-                    <span>{fileSummary?.fileType ?? fileKind}</span>
-                    <span>{fileSummary?.sheets.length ?? 0} 个结构块</span>
+                <section className={`${styles.stagePanel} ${styles.structurePanel}`}>
+                  <div className={styles.sectionHeader}>
+                    <span>结构区</span>
+                    <div>
+                      <h2>附件结构快照</h2>
+                      <p>用于核对文件字段来源，避免直接按未确认规则入库。</p>
+                    </div>
                   </div>
-                )}
+                  <div className={styles.rulePreview}>
+                    {fileSummary ? (
+                      <pre>{JSON.stringify(fileSummary, null, 2).slice(0, 2600)}</pre>
+                    ) : (
+                      <div className={styles.emptyText}>接入附件后，这里会显示结构摘要。</div>
+                    )}
+                  </div>
+                </section>
               </div>
 
-              <div className={styles.card}>
-                <div className={styles.cardHeader}>
-                  <div className={styles.stepBadge}>B</div>
-                  <div>
-                    <h2>规则栏</h2>
-                    <p>可从规则库点选，也可让 AI 先起草字段映射，最终以人工确认为准。</p>
+              <aside className={styles.controlColumn}>
+                <section className={styles.ruleDock}>
+                  <div className={styles.sectionHeader}>
+                    <span>规则区</span>
+                    <div>
+                      <h2>选择或校准规则</h2>
+                      <p>AI 可以起草，最终以人工确认后的规则为准。</p>
+                    </div>
                   </div>
-                </div>
 
-                <div className={styles.ruleToolbar}>
-                  <button
-                    className={styles.primaryGhost}
-                    onClick={generateRuleByAi}
-                    disabled={!fileSummary || isGeneratingRule}
-                  >
-                    {isGeneratingRule ? <Loader2 className={styles.spin} size={16} /> : <Sparkles size={16} />}
-                    AI 起草映射
-                  </button>
-                  <button
-                    className={styles.plainButton}
-                    onClick={openParseRuleDialog}
-                    disabled={!currentRule}
-                  >
-                    <FileJson size={16} />
-                    校准当前规则
-                  </button>
-                  <button className={styles.plainButton} onClick={() => void loadRules()}>
-                    <RefreshCw size={16} />
-                    刷新
-                  </button>
-                </div>
+                  <div className={styles.ruleToolbar}>
+                    <button
+                      className={styles.primaryGhost}
+                      onClick={generateRuleByAi}
+                      disabled={!fileSummary || isGeneratingRule}
+                    >
+                      {isGeneratingRule ? <Loader2 className={styles.spin} size={16} /> : <Sparkles size={16} />}
+                      AI 起草
+                    </button>
+                    <button
+                      className={styles.plainButton}
+                      onClick={openParseRuleDialog}
+                      disabled={!currentRule}
+                    >
+                      <FileJson size={16} />
+                      校准
+                    </button>
+                    <button className={styles.plainButton} onClick={() => void loadRules()}>
+                      <RefreshCw size={16} />
+                      刷新
+                    </button>
+                  </div>
 
-                <div className={styles.ruleList}>
-                  {savedRuleOptions.length === 0 ? (
-                    <div className={styles.emptyRule}>规则库暂时为空，接入文件后可让 AI 起草一版。</div>
-                  ) : (
-                    savedRuleOptions.map(({ record, rule }) => (
-                      <div
-                        key={record.id}
-                        role="button"
-                        tabIndex={0}
-                        className={`${styles.ruleItem} ${record.fingerprint === fingerprint ? styles.ruleItem_current : ""}`}
-                        onClick={() => {
-                          setCurrentRule(rule);
-                          setIsRuleReady(true);
-                          pushToast("success", `已手动选择规则：${rule.name}`);
-                        }}
-                        onKeyDown={(event) => {
-                          if (event.key === "Enter" || event.key === " ") {
+                  <div className={styles.ruleList}>
+                    {savedRuleOptions.length === 0 ? (
+                      <div className={styles.emptyRule}>规则库暂无可选项，可先接入文件并让 AI 起草。</div>
+                    ) : (
+                      savedRuleOptions.map(({ record, rule }) => (
+                        <div
+                          key={record.id}
+                          role="button"
+                          tabIndex={0}
+                          className={`${styles.ruleItem} ${record.fingerprint === fingerprint ? styles.ruleItem_current : ""}`}
+                          onClick={() => {
                             setCurrentRule(rule);
                             setIsRuleReady(true);
                             pushToast("success", `已手动选择规则：${rule.name}`);
-                          }
-                        }}
-                      >
-                        <div>
-                          <strong>{record.name}</strong>
-                          <span>{record.fileType} · {record.mode} · {new Date(record.updatedAt).toLocaleString("zh-CN")}</span>
-                        </div>
-                        <button
-                          className={styles.iconButton}
-                          title="删除规则"
-                          onClick={async (event) => {
-                            event.stopPropagation();
-                            await fetch(`/api/mappings?id=${encodeURIComponent(record.id)}`, { method: "DELETE" });
-                            await loadRules();
+                          }}
+                          onKeyDown={(event) => {
+                            if (event.key === "Enter" || event.key === " ") {
+                              setCurrentRule(rule);
+                              setIsRuleReady(true);
+                              pushToast("success", `已手动选择规则：${rule.name}`);
+                            }
                           }}
                         >
-                          <Trash2 size={14} />
-                        </button>
-                      </div>
-                    ))
-                  )}
-                </div>
+                          <div>
+                            <strong>{record.name}</strong>
+                            <span>{record.fileType} · {record.mode} · {new Date(record.updatedAt).toLocaleString("zh-CN")}</span>
+                          </div>
+                          <button
+                            className={styles.iconButton}
+                            title="删除规则"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              void deleteRule(record);
+                            }}
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      ))
+                    )}
+                  </div>
 
-                <div className={styles.ruleSummary}>
-                  <span>{isRuleReady ? "当前生效规则" : "当前规则草案"}</span>
-                  <strong>{currentRule?.name ?? "未选择"}</strong>
-                  <small>{isRuleReady ? "已人工确认" : "待人工确认"} · 已映射 {coverage.mapped}/{coverage.total}</small>
-                </div>
-              </div>
-            </section>
+                  <div className={styles.ruleSummary}>
+                    <span>{isRuleReady ? "当前生效规则" : "当前规则草案"}</span>
+                    <strong>{currentRule?.name ?? "未选择"}</strong>
+                    <small>{isRuleReady ? "已人工确认" : "待人工确认"} · 已映射 {coverage.mapped}/{coverage.total}</small>
+                  </div>
+                </section>
 
-            <section className={styles.confirmPanel}>
-              <div className={styles.cardHeader}>
-                <div className={styles.stepBadge}>C</div>
-                <div>
-                  <h2>结构快照与明细生成</h2>
-                  <p>核对字段来源、模式和补充参数后生成明细；生成结果进入下方表格继续修正。</p>
-                </div>
-              </div>
+                <section className={styles.executeDock}>
+                  <div className={styles.sectionHeader}>
+                    <span>执行区</span>
+                    <div>
+                      <h2>生成核对明细</h2>
+                      <p>解析结果进入下方表格，修正后再写入数据库。</p>
+                    </div>
+                  </div>
 
-              <div className={styles.confirmGrid}>
-                <div className={styles.rulePreview}>
-                  <div className={styles.previewTitle}>附件结构快照</div>
-                  {fileSummary ? (
-                    <pre>{JSON.stringify(fileSummary, null, 2).slice(0, 2600)}</pre>
-                  ) : (
-                    <div className={styles.emptyText}>请先接入一个考试附件文件。</div>
-                  )}
-                </div>
-                <div className={styles.actionBox}>
                   {statCards.map((card) => (
                     <div key={card.label} className={styles.statCard}>
                       <card.icon size={17} />
@@ -981,9 +1045,7 @@ export default function OperationsWorkbench() {
                           style={{ width: `${isSubmitting ? submitProgress : parseProgress.pct}%` }}
                         />
                       </div>
-                      {!isSubmitting && (
-                        <small>{parseProgress.current}/{parseProgress.total} 条</small>
-                      )}
+                      {!isSubmitting && <small>{parseProgress.current}/{parseProgress.total} 条</small>}
                     </div>
                   )}
 
@@ -999,16 +1061,17 @@ export default function OperationsWorkbench() {
                     <FileUp size={16} />
                     更换文件
                   </button>
-                </div>
-              </div>
+                </section>
+              </aside>
             </section>
 
             {activeView === "preview" && (
-              <section className={styles.previewPanel}>
+              <section className={styles.dataPanel}>
                 <div className={styles.previewHeader}>
                   <div>
-                    <h2>明细核对台</h2>
-                    <p>共 {rows.length} 条明细，可横向滚动检查；单元格点击后直接修正。</p>
+                    <span>核对区</span>
+                    <h2>转运明细表</h2>
+                    <p>共 {rows.length} 条明细；单元格点击后可直接修正。</p>
                   </div>
                   <div className={styles.previewActions}>
                     <button onClick={handleAddRow}>
@@ -1093,11 +1156,12 @@ export default function OperationsWorkbench() {
         )}
 
         {activeView === "history" && (
-          <section className={styles.previewPanel}>
+          <section className={styles.dataPanel}>
             <div className={styles.previewHeader}>
               <div>
+                <span>记录区</span>
                 <h2>入库记录</h2>
-                <p>从数据库读取已写入明细，支持按外部编码、收件人、门店和提交时间筛选。</p>
+                <p>筛选条件回填后不会立即查询，点击搜索后才刷新数据。</p>
               </div>
             </div>
             <ShipmentHistory />
